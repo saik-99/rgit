@@ -1,21 +1,20 @@
-# 🚀 Hackathon Project Template
+# 🚀 Hackathon Project
 
-Welcome to the team repository! This project is organized for a 4-person hackathon team using **Antigravity**.
+A collaborative AI-powered hackathon project built by a 4-person team using **Antigravity**.
 
 ---
 
-## 👥 Team Roles & Ownership Matrix
+## 👥 The 4-Person Team Roles
 
-| Role | Member Name / GitHub Handle | Assigned Sandbox Directory | Responsibilities |
+| Role | Member | Focus Area | Directory Scope |
 | :--- | :--- | :--- | :--- |
-| **Pro 1: Lead Architect / Integrator** | `@lead_architect` | `src/core/`, Root configs | App setup, routing, state/APIs, code reviews, merging PRs |
-| **Pro 2: Frontend & UI Lead** | `@ui_lead` | `src/components/common/`, `src/styles/` | Design system, global styling, layout integration |
-| **Beginner 1: Feature Alpha** | `@beginner_1` | `src/features/feature-alpha/` | Dedicated feature screen/module A |
-| **Beginner 2: Feature Beta** | `@beginner_2` | `src/features/feature-beta/` | Dedicated feature screen/module B |
+| **Person 1** | @saik-99 (Lead) | **Frontend & Backend** | `frontend/`, `backend/`, Root integration |
+| **Person 2** | Teammate 2 | **Dataset & ML Model** | `ml/` (data, models, inference) |
+| **Person 3** | Teammate 3 | **Researcher & Pitch/Product** | `research/`, `docs/` |
+| **Person 4** | Teammate 4 | **Managing & Integrating AI Agents** | `agents/` (prompts, tools, loops) |
 
-> ⚠️ **Golden Rule for Hackathon Success:**  
-> Beginners modify **ONLY** files inside their assigned `src/features/...` folder.  
-> Never edit root files (`package.json`, global router, configs) without Pro 1 or Pro 2 approval!
+👉 **Read the comprehensive step-by-step role guides:** [ROLE_GUIDE.md](ROLE_GUIDE.md)  
+👉 **Read Git & Antigravity contribution workflow:** [TEAM_WORKFLOW.md](TEAM_WORKFLOW.md)
 
 ---
 
@@ -24,18 +23,26 @@ Welcome to the team repository! This project is organized for a 4-person hackath
 ```text
 ├── .agents/
 │   └── rules/
-│       └── hackathon_roles.md     # Antigravity AI rule: keeps agents inside assigned folders
+│       └── hackathon_roles.md   # Antigravity AI guardrail rule
 ├── .github/
-│   ├── CODEOWNERS                 # Auto-assigns reviewers on PRs
-│   └── pull_request_template.md   # Checklists for safe merging
-├── src/
-│   ├── core/                      # [Pro 1] API clients, state management, router setup
-│   ├── components/common/         # [Pro 2] Shared buttons, cards, headers, styling
-│   └── features/
-│       ├── feature-alpha/         # [Beginner 1] Isolated feature sandbox
-│       └── feature-beta/          # [Beginner 2] Isolated feature sandbox
-├── docs/                          # Pitch notes, demo scripts, architecture diagrams
-├── TEAM_WORKFLOW.md               # Quick Git & Antigravity cheatsheet for the team
+│   ├── CODEOWNERS               # Auto-assigns reviewers per domain
+│   └── pull_request_template.md # PR pre-merge checklist
+├── frontend/                    # [Person 1] Web UI application
+├── backend/                     # [Person 1] API server & DB connections
+├── ml/                          # [Person 2] Machine learning & datasets
+│   ├── data/                    # Raw & preprocessed datasets
+│   ├── models/                  # Model weights / artifacts
+│   └── pipeline.py              # Clean predict() inference runner
+├── research/                    # [Person 3] Market research, pitch deck, demo script
+│   ├── PITCH_DECK_OUTLINE.md
+│   ├── DEMO_SCRIPT.md
+│   └── BENCHMARKS_AND_EVALS.md
+├── agents/                      # [Person 4] AI Agents management & workflows
+│   ├── prompts/                 # System prompts & few-shot instructions
+│   ├── tools/                   # Agent tool functions
+│   └── agent_manager.py         # Agent orchestrator loop
+├── ROLE_GUIDE.md                # Detailed guide for each member
+├── TEAM_WORKFLOW.md             # Git cheatsheet & safety protocol
 └── README.md
 ```
 
@@ -43,9 +50,14 @@ Welcome to the team repository! This project is organized for a 4-person hackath
 
 ## ⚡ Quick Start for Team Members
 
-1. **Clone the repo:**
+1. **Clone the repository:**
    ```bash
-   git clone <REPO_URL>
-   cd <REPO_NAME>
+   git clone https://github.com/saik-99/rgit.git
+   cd rgit
    ```
-2. **Read the workflow:** Open [TEAM_WORKFLOW.md](TEAM_WORKFLOW.md) for step-by-step instructions on making changes and opening Pull Requests without merge conflicts.
+2. **Switch to your assigned branch:**
+   - Person 1: `git checkout -b feature/fullstack`
+   - Person 2: `git checkout -b feature/ml-pipeline`
+   - Person 3: `git checkout -b feature/research-pitch`
+   - Person 4: `git checkout -b feature/ai-agents`
+3. **Open the repository in Antigravity IDE.** Antigravity will automatically adhere to the guardrails configured in `.agents/rules/hackathon_roles.md`.

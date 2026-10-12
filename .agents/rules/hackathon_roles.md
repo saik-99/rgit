@@ -1,20 +1,30 @@
-# Hackathon Role Guardrails & File Scope Rules
+# Hackathon Team Role Guardrails & File Scope Rules
 
-You are assisting a hackathon team member in this repository. The team consists of 4 members with strict role isolation to avoid merge conflicts and broken builds.
+You are assisting a hackathon team member in this repository. The team consists of 4 specialized roles with strict directory isolation to prevent merge conflicts and broken builds.
 
-## Team Architecture & Scopes
-1. **Lead Architect (Pro 1)**:
-   - Scope: `src/core/`, root configs, database, deployment, architecture.
-2. **Frontend Lead (Pro 2)**:
-   - Scope: `src/components/common/`, `src/styles/`, global theme, layouts.
-3. **Beginner 1 (Feature Alpha)**:
-   - Scope: Strictly `src/features/feature-alpha/`.
-4. **Beginner 2 (Feature Beta)**:
-   - Scope: Strictly `src/features/feature-beta/`.
+## Team Architecture & Role Boundaries
+1. **Person 1 (User / Full-Stack Lead)**:
+   - Scope: `frontend/`, `backend/`, root configs (`package.json`, etc.).
+   - Role: UI components, server API endpoints, wiring ML and Agent outputs into the application.
+2. **Person 2 (Dataset & ML Model)**:
+   - Scope: Strictly `ml/` (`ml/data/`, `ml/models/`, `ml/pipeline.py`).
+   - Role: Dataset preparation, model training/inference script, model evaluation.
+3. **Person 3 (Researcher & Product/Pitch)**:
+   - Scope: Strictly `research/` and `docs/`.
+   - Role: Problem statement, competitor analysis, pitch deck outline, demo script, benchmarks.
+4. **Person 4 (AI Agent Manager)**:
+   - Scope: Strictly `agents/` (`agents/prompts/`, `agents/tools/`, `agents/agent_manager.py`).
+   - Role: Autonomous agent loops, prompt engineering, tool calling integrations.
 
 ## Mandatory Agent Guidelines
-- **Determine Role / Scope First**: When a user asks you to implement or edit code, observe which directory or feature they are focusing on.
-- **Enforce Sandbox Boundaries**: If the user is working on Feature Alpha or Feature Beta, DO NOT modify files outside `src/features/feature-alpha/` or `src/features/feature-beta/`.
-- **Never Modify Root Files Without Warning**: Do NOT edit `package.json`, root build configurations, or central routing unless explicitly instructed by the Lead Architect.
-- **Self-Contained Components**: Keep feature components self-contained (export standard components, dummy data mocks if backend isn't ready) so they can be plugged cleanly into the main app by the Leads.
-- **Git Safety**: Never instruct beginners to force-push (`git push --force`) or commit directly to the `main` branch. Always recommend working on a dedicated feature branch.
+- **Identify User's Role**: Before making code edits, verify which person/domain the prompt relates to.
+- **Enforce Sandbox Isolation**:
+  - If assisting Person 2: ONLY create/modify files inside `ml/`. Do not touch frontend, backend, or agents.
+  - If assisting Person 3: ONLY create/modify markdown documents inside `research/` or `docs/`.
+  - If assisting Person 4: ONLY create/modify files inside `agents/`.
+  - If assisting Person 1: Person 1 is the Full-Stack lead and integrates endpoints in `frontend/` and `backend/`.
+- **Clean Interfaces**:
+  - Person 2 should export a clean `predict(input_dict)` in `ml/pipeline.py`.
+  - Person 4 should export a clean `run_agent(prompt, context)` in `agents/agent_manager.py`.
+  - Person 1 calls these functions from `backend/`.
+- **Git Safety**: Never instruct teammates to push directly to `main` or force push. Encourage feature branches (`feature/ml-pipeline`, `feature/agent-system`, etc.).
