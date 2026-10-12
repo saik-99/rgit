@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from .database import engine, Base, SessionLocal
-from .routes import events, incidents, scenarios, sources, stream, hazards
+from .routes import events, incidents, scenarios, sources, stream, hazards, api_v1
 from .routes import weather as weather_route
 from .seed import seed_mumbai_scenario
 from .adapters.open_meteo import fetch_all_weather, USE_LIVE_WEATHER
@@ -76,9 +76,11 @@ app.include_router(sources.router, prefix="/api", tags=["Sources"])
 app.include_router(stream.router, prefix="/api", tags=["Stream"])
 app.include_router(weather_route.router, prefix="/api", tags=["Weather"])
 app.include_router(hazards.router, prefix="/api", tags=["Hazards"])
+app.include_router(api_v1.router, prefix="/api", tags=["Downstream V1"])
 
 
 @app.get("/api/health")
+@app.get("/health")
 async def health():
     return {
         "status": "ok",

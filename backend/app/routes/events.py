@@ -6,11 +6,26 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
-from ..models import Event
+from ..models import Event, Incident
 from ..schemas import EventCreate, BatchEventsCreate
 from ..engine import process_event
+from .stream import broadcast_event
 
 router = APIRouter()
+
+
+async def broadcast_ingest_updates(processed_event: Event, db: AsyncSession):
+    """Broadcast event_ingested and incident_updated to live WebSocket stream."""
+    try:
+        await broadcast_event({"type": "event_ingested", "event": processed_event.to_dict()})
+        incident = getattr(processed_event, "_incident", None)
+        if not incident and processed_event.incident_id:
+            res = await db.execute(select(Incident).where(Incident.id == processed_event.incident_id))
+            incident = res.scalars().first()
+        if incident:
+            await broadcast_event({"type": "incident_updated", "incident": incident.to_dict(include_events=True)})
+    except Exception:
+        pass
 
 
 @router.post("/events", status_code=201)
@@ -28,6 +43,7 @@ async def ingest_event(event_data: EventCreate, db: AsyncSession = Depends(get_d
         trust=event_data.trust,
     )
     processed = await process_event(db, event)
+    await broadcast_ingest_updates(processed, db)
     return processed.to_dict()
 
 
@@ -48,6 +64,7 @@ async def ingest_batch(batch: BatchEventsCreate, db: AsyncSession = Depends(get_
             trust=event_data.trust,
         )
         processed = await process_event(db, event)
+        await broadcast_ingest_updates(processed, db)
         results.append(processed.to_dict())
     return {"ingested": len(results), "events": results}
 

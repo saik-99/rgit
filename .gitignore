@@ -33,7 +33,10 @@ temp/
 
 # Python & Databases
 __pycache__/
+**/__pycache__/
 *.py[cod]
+*.pyc
+*.pyo
 *$py.class
 *.db
 *.sqlite

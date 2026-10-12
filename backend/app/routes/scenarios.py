@@ -10,11 +10,28 @@ from ..database import get_db
 from ..models import Event, Incident, Source
 from ..seed import seed_mumbai_scenario
 from ..engine import process_event
+from .stream import broadcast_event
 
 router = APIRouter()
 
 # Mumbai coordinates
 HINDMATA = (19.0112, 72.8512)
+
+
+async def _process_and_broadcast(db: AsyncSession, event: Event) -> Event:
+    """Run process_event and broadcast event_ingested and incident_updated to WebSocket."""
+    processed = await process_event(db, event)
+    try:
+        await broadcast_event({"type": "event_ingested", "event": processed.to_dict()})
+        incident = getattr(processed, "_incident", None)
+        if not incident and processed.incident_id:
+            res = await db.execute(select(Incident).where(Incident.id == processed.incident_id))
+            incident = res.scalars().first()
+        if incident:
+            await broadcast_event({"type": "incident_updated", "incident": incident.to_dict(include_events=True)})
+    except Exception:
+        pass
+    return processed
 
 
 async def _reset_db(db: AsyncSession):
@@ -63,7 +80,7 @@ async def run_scenario(name: str, db: AsyncSession = Depends(get_db)):
                 payload=json.dumps({"value": 78.5, "unit": "cm_above_normal", "description": "Duplicate signal"}),
                 trust=0.95,
             )
-            await process_event(db, dup)
+            await _process_and_broadcast(db, dup)
         return {"scenario": name, "message": "3 duplicate water_level events injected — deduplication should flag them."}
 
     elif name == "drop_sensor":
@@ -88,7 +105,7 @@ async def run_scenario(name: str, db: AsyncSession = Depends(get_db)):
             payload=json.dumps({"text": "Everything is clear here, no flooding at all, road is dry.", "language": "en"}),
             trust=0.25,
         )
-        await process_event(db, evt)
+        await _process_and_broadcast(db, evt)
         return {"scenario": name, "message": "Conflicting citizen report injected — confidence should decrease."}
 
     elif name == "spoofed_sensor":
@@ -103,7 +120,7 @@ async def run_scenario(name: str, db: AsyncSession = Depends(get_db)):
             signature="invalid_signature_data",
             trust=0.15,
         )
-        await process_event(db, evt)
+        await _process_and_broadcast(db, evt)
         return {"scenario": name, "message": "Spoofed sensor event injected — should be flagged as untrusted."}
 
     elif name == "heavy_rain":
@@ -124,7 +141,7 @@ async def run_scenario(name: str, db: AsyncSession = Depends(get_db)):
             }),
             trust=0.80,
         )
-        await process_event(db, evt)
+        await _process_and_broadcast(db, evt)
         return {"scenario": name, "message": "Heavy rain event injected (120 mm/hr). Drainage failure confidence should increase."}
 
     elif name == "earthquake":
@@ -147,7 +164,7 @@ async def run_scenario(name: str, db: AsyncSession = Depends(get_db)):
             trust=0.95,
             signature_verified=True,
         )
-        await process_event(db, seismic_evt)
+        await _process_and_broadcast(db, seismic_evt)
 
         # Inject supporting tremor citizen report
         tremor_report = Event(
@@ -161,7 +178,7 @@ async def run_scenario(name: str, db: AsyncSession = Depends(get_db)):
             trust=0.75,
             signature_verified=False,
         )
-        await process_event(db, tremor_report)
+        await _process_and_broadcast(db, tremor_report)
 
         return {
             "scenario": name,

@@ -24,6 +24,8 @@ class Event(Base):
     is_anomaly = Column(Boolean, default=False)
     anomaly_zscore = Column(Float, default=0.0)
     h3_cell = Column(String(20), nullable=True)
+    duplicate_of = Column(Integer, nullable=True)
+    corroboration_count = Column(Integer, default=0)
     incident_id = Column(Integer, ForeignKey("incidents.id"), nullable=True)
 
     incident = relationship("Incident", back_populates="events")
@@ -41,6 +43,8 @@ class Event(Base):
             "trust": self.trust,
             "signature_verified": self.signature_verified,
             "is_duplicate": self.is_duplicate,
+            "duplicate_of": self.duplicate_of,
+            "corroboration_count": self.corroboration_count,
             "is_anomaly": self.is_anomaly,
             "anomaly_zscore": self.anomaly_zscore,
             "h3_cell": self.h3_cell,
@@ -66,6 +70,7 @@ class Incident(Base):
     cause_ranking = Column(Text, default="[]")  # JSON array
     confidence_history = Column(Text, default="[]")  # JSON array of {t, confidence}
     flood_polygon = Column(Text, default="[]")  # GeoJSON coordinates array
+    missing_sources = Column(Text, default="[]")  # JSON array of missing / silent sensor device IDs
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow)
 
@@ -88,6 +93,7 @@ class Incident(Base):
             "cause_ranking": json.loads(self.cause_ranking) if self.cause_ranking else [],
             "confidence_history": json.loads(self.confidence_history) if self.confidence_history else [],
             "flood_polygon": json.loads(self.flood_polygon) if self.flood_polygon else [],
+            "missing_sources": json.loads(self.missing_sources) if self.missing_sources else [],
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "event_count": len(self.events) if self.events else 0,

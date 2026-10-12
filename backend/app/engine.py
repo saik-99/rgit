@@ -7,6 +7,7 @@ import math
 import hashlib
 import hmac
 import datetime
+import difflib
 import numpy as np
 from typing import Optional
 from sqlalchemy import select, func
@@ -127,18 +128,60 @@ def verify_signature(event_data: dict, signature: str, hmac_key: str) -> bool:
 
 # ── Deduplication ─────────────────────────────────────────────────────────────
 
-async def check_duplicate(db: AsyncSession, event: Event) -> bool:
-    """Check if an identical event (same device, timestamp, source_type) already exists."""
-    result = await db.execute(
-        select(Event).where(
-            Event.device_id == event.device_id,
-            Event.timestamp == event.timestamp,
-            Event.source_type == event.source_type,
-            Event.is_duplicate == False,
+async def check_duplicate(db: AsyncSession, event: Event) -> tuple[bool, Optional[int]]:
+    """
+    Check for identical sensor events OR near-duplicate citizen_report / emergency_call.
+    For citizen_report / emergency_call within 300 m and 10 min with difflib ratio > 0.75:
+    -> is_duplicate=True, store duplicate_of id, and add corroboration_count on original.
+    Returns: (is_duplicate, duplicate_of_id)
+    """
+    # 1. Exact sensor duplicate (same device, timestamp, source_type)
+    if event.device_id and event.timestamp:
+        result = await db.execute(
+            select(Event).where(
+                Event.device_id == event.device_id,
+                Event.timestamp == event.timestamp,
+                Event.source_type == event.source_type,
+                Event.is_duplicate == False,
+            )
         )
-    )
-    existing = result.scalars().first()
-    return existing is not None
+        existing = result.scalars().first()
+        if existing is not None:
+            return True, existing.id
+
+    # 2. Near-duplicate citizen report or emergency call
+    if event.source_type in ("citizen_report", "emergency_call"):
+        p_curr = json.loads(event.payload) if isinstance(event.payload, str) else (event.payload or {})
+        t_curr = str(p_curr.get("text", p_curr.get("description", ""))).strip()
+
+        if t_curr and event.timestamp:
+            result = await db.execute(
+                select(Event).where(
+                    Event.source_type.in_(["citizen_report", "emergency_call"]),
+                    Event.is_duplicate == False,
+                )
+            )
+            candidates = result.scalars().all()
+            for cand in candidates:
+                if not cand.timestamp:
+                    continue
+                time_diff = abs((event.timestamp - cand.timestamp).total_seconds())
+                if time_diff > 600.0:  # 10 minutes
+                    continue
+                dist = haversine_m(event.lat, event.lon, cand.lat, cand.lon)
+                if dist > 300.0:  # 300 meters
+                    continue
+                p_cand = json.loads(cand.payload) if isinstance(cand.payload, str) else (cand.payload or {})
+                t_cand = str(p_cand.get("text", p_cand.get("description", ""))).strip()
+                if not t_cand:
+                    continue
+                ratio = difflib.SequenceMatcher(None, t_curr.lower(), t_cand.lower()).ratio()
+                if ratio > 0.75:
+                    cand.corroboration_count = (cand.corroboration_count or 0) + 1
+                    db.add(cand)
+                    return True, cand.id
+
+    return False, None
 
 
 # ── Anomaly Detection ─────────────────────────────────────────────────────────
@@ -493,12 +536,65 @@ def generate_explanation(incident: Incident, events: list[Event], cause: str, co
     if untrusted:
         lines.append(f"\n🔒 **Integrity note**: {len(untrusted)} source(s) have unverified signatures or low trust scores.")
 
+    # Missing sensor telemetry note
+    missing = json.loads(incident.missing_sources) if incident.missing_sources else []
+    if missing:
+        lines.append(f"\n📡 **Sensor telemetry note**: Reporting sensor(s) ({', '.join(missing)}) went silent. Hypothesis preserved with adjusted confidence.")
+
     # Alternative causes
     if len(ranking) > 1:
         alt = ranking[1]
         lines.append(f"\n**Alternative cause**: {alt['label']} ({alt['probability']:.0%}).")
 
     return "\n".join(lines)
+
+
+# ── Incident Lifecycle ────────────────────────────────────────────────────────
+
+def update_incident_lifecycle(incident: Incident, inc_events: list[Event], as_of: Optional[datetime.datetime] = None) -> list[str]:
+    """
+    Check incident lifecycle status based on event time delta:
+    - active -> monitoring if no new events for 30 min (event time)
+    - -> resolved after 60 min (event time)
+    - If a sensor that was reporting goes silent (>= 15 min without report compared to ref time),
+      add it to 'missing_sources' list and preserve the incident.
+    Returns missing_sources list of device_ids.
+    """
+    non_dup = [e for e in inc_events if not e.is_duplicate]
+    if not non_dup:
+        return []
+
+    times = [e.timestamp for e in non_dup if e.timestamp]
+    if not times:
+        return []
+
+    latest_event_ts = max(times)
+    ref_ts = as_of or latest_event_ts
+
+    elapsed_minutes = (ref_ts - latest_event_ts).total_seconds() / 60.0
+    if elapsed_minutes >= 60.0:
+        incident.status = "resolved"
+    elif elapsed_minutes >= 30.0:
+        incident.status = "monitoring"
+    else:
+        incident.status = "active"
+
+    # Detect silent reporting sensors (water_level, road_sensor, transit, seismic, weather)
+    sensor_last_seen: dict[str, datetime.datetime] = {}
+    for e in non_dup:
+        if e.device_id and e.source_type in ("water_level", "road_sensor", "transit", "seismic", "weather"):
+            t = e.timestamp
+            if t:
+                sensor_last_seen[e.device_id] = max(t, sensor_last_seen.get(e.device_id, t))
+
+    missing = []
+    for dev_id, last_t in sensor_last_seen.items():
+        silence_mins = (ref_ts - last_t).total_seconds() / 60.0
+        if silence_mins >= 15.0:
+            missing.append(dev_id)
+
+    incident.missing_sources = json.dumps(missing)
+    return missing
 
 
 # ── Master Processing Pipeline ────────────────────────────────────────────────
@@ -537,8 +633,9 @@ async def process_event(db: AsyncSession, event: Event) -> Event:
         event.signature_verified = True  # Trust registered sensors by default
 
     # 4. Deduplication
-    is_dup = await check_duplicate(db, event)
+    is_dup, dup_of = await check_duplicate(db, event)
     event.is_duplicate = is_dup
+    event.duplicate_of = dup_of
 
     # 5. Anomaly detection
     is_anomaly, zscore = await detect_anomaly(db, event)
@@ -552,6 +649,14 @@ async def process_event(db: AsyncSession, event: Event) -> Event:
     await db.flush()
 
     if event.is_duplicate:
+        # If it's a duplicate of an existing event in an incident, associate it
+        if event.duplicate_of:
+            res_orig = await db.execute(select(Event).where(Event.id == event.duplicate_of))
+            orig_ev = res_orig.scalars().first()
+            if orig_ev and orig_ev.incident_id:
+                event.incident_id = orig_ev.incident_id
+                inc_res = await db.execute(select(Incident).where(Incident.id == orig_ev.incident_id))
+                event._incident = inc_res.scalars().first()
         await db.commit()
         return event
 
@@ -583,25 +688,32 @@ async def process_event(db: AsyncSession, event: Event) -> Event:
         incident.centroid_lat = sum(e.lat for e in non_dup_events) / len(non_dup_events)
         incident.centroid_lon = sum(e.lon for e in non_dup_events) / len(non_dup_events)
 
-    # 10. Causal inference
+    # 10. Lifecycle status & silent sensor detection
+    missing_sources = update_incident_lifecycle(incident, inc_events, as_of=event.timestamp)
+
+    # 11. Causal inference
     cause, confidence, ranking = infer_cause(inc_events)
+    # If sensor went silent, reduce confidence slightly
+    if missing_sources:
+        confidence = max(0.05, round(confidence - 0.05 * min(len(missing_sources), 3), 3))
+
     incident.cause = cause
     incident.cause_confidence = confidence
     incident.cause_ranking = json.dumps(ranking)
 
-    # 11. Severity
+    # 12. Severity
     sev_score, sev_level = compute_severity(cause, inc_events, confidence)
     incident.severity_score = sev_score
     incident.severity_level = sev_level
 
-    # 12. Title
+    # 13. Title
     cause_label = CAUSE_VOCABULARY.get(cause, {}).get("label", cause)
     incident.title = f"{cause_label} — {incident.neighborhood or 'Urban Sector'}"
 
-    # 13. Explanation
+    # 14. Explanation
     incident.explanation = generate_explanation(incident, inc_events, cause, confidence, ranking)
 
-    # 14. Confidence history
+    # 15. Confidence history
     history = json.loads(incident.confidence_history or "[]")
     history.append({
         "t": datetime.datetime.utcnow().isoformat(),
@@ -612,6 +724,9 @@ async def process_event(db: AsyncSession, event: Event) -> Event:
 
     incident.updated_at = datetime.datetime.utcnow()
     await db.commit()
+
+    # Store incident reference for WebSocket broadcast
+    event._incident = incident
 
     # Update source tracking
     if source_obj:

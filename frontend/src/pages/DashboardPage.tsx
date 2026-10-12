@@ -18,25 +18,30 @@ import {
 import { DataSourcesModal } from '../components/DataSourcesModal'
 import { WindyPanel } from '../components/WindyPanel'
 
-// Basemap Tile Providers (100% Free, Zero API Keys, No Watermarks)
+// Basemap Tile Providers (100% Free, Zero API Keys, Real Hazard Feeds)
 const BASEMAPS = {
   esriSatellite: {
-    name: 'Satellite (Esri)',
+    name: '🛰️ Satellite',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     attribution: 'Tiles &copy; Esri, Maxar, Earthstar Geographics',
   },
-  esriDark: {
-    name: 'Dark Canvas',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-    attribution: 'Tiles &copy; Esri, DeLorme, NAVTEQ',
+  windyMap: {
+    name: '🌧️ Windy Map',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Windy.com &copy; Live Weather Radar Feed',
   },
-  esriStreets: {
-    name: 'Esri Streets',
+  googleFlood: {
+    name: '🌊 Google Flood Map',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-    attribution: 'Tiles &copy; Esri',
+    attribution: 'Google Flood Hub &copy; River Gauge Telemetry',
+  },
+  earthquakeMap: {
+    name: '🌋 Earthquake Map',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'USGS Real-Time Earthquake Feed',
   },
   osm: {
-    name: 'OpenStreetMap',
+    name: '🌐 OpenStreetMap',
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '&copy; OpenStreetMap contributors',
   },
@@ -743,7 +748,17 @@ export const DashboardPage: React.FC = () => {
             {(Object.keys(BASEMAPS) as Array<keyof typeof BASEMAPS>).map((key) => (
               <button
                 key={key}
-                onClick={() => setActiveBasemap(key)}
+                onClick={() => {
+                  setActiveBasemap(key)
+                  if (key === 'windyMap') {
+                    setWindyExpanded(true)
+                  } else if (key === 'googleFlood') {
+                    setLayerGoogleFlood(true)
+                    setLayerFloodPolygon(true)
+                  } else if (key === 'earthquakeMap') {
+                    setLayerEarthquakes(true)
+                  }
+                }}
                 className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-colors ${
                   activeBasemap === key
                     ? 'bg-[#0079C1] text-white shadow-xs'
