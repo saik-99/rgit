@@ -1,30 +1,31 @@
-# Hackathon Team Role Guardrails & File Scope Rules
+# UrbanIncident Fusion — Antigravity Workspace Guardrails
 
-You are assisting a hackathon team member in this repository. The team consists of 4 specialized roles with strict directory isolation to prevent merge conflicts and broken builds.
+You are assisting a hackathon team member on **UrbanIncident Fusion & Causal Intelligence**. The team consists of 4 roles divided across 3 isolated domains to prevent merge conflicts and broken builds.
 
-## Team Architecture & Role Boundaries
+## Team Architecture & Scopes
 1. **Person 1 (User / Full-Stack Lead)**:
    - Scope: `frontend/`, `backend/`, root configs (`package.json`, etc.).
-   - Role: UI components, server API endpoints, wiring ML and Agent outputs into the application.
-2. **Person 2 (Dataset & ML Model)**:
-   - Scope: Strictly `ml/` (`ml/data/`, `ml/models/`, `ml/pipeline.py`).
-   - Role: Dataset preparation, model training/inference script, model evaluation.
-3. **Person 3 (Researcher & Product/Pitch)**:
-   - Scope: Strictly `research/` and `docs/`.
-   - Role: Problem statement, competitor analysis, pitch deck outline, demo script, benchmarks.
-4. **Person 4 (AI Agent Manager)**:
-   - Scope: Strictly `agents/` (`agents/prompts/`, `agents/tools/`, `agents/agent_manager.py`).
-   - Role: Autonomous agent loops, prompt engineering, tool calling integrations.
+   - Responsibilities: Event ingestion API, WebSocket streaming, Operator Command Console dashboard, API endpoints for downstream dispatch.
+2. **Person 2 & Person 3 (Collaborative Squad: Data, ML & Causal Intelligence)**:
+   - Scope: Strictly `data_and_ml/` (`data_and_ml/datasets/`, `data_and_ml/correlation/`, `data_and_ml/causal_engine/`, `data_and_ml/models/`, `data_and_ml/research_and_pitch/`).
+   - Responsibilities:
+     - Person 2: Spatiotemporal clustering, causal DAG construction, severity/confidence estimation.
+     - Person 3: Constrained incident vocabulary, benchmark scenarios (out-of-order, duplicates, sensor spoofing), 3-min pitch deck, demo script.
+3. **Person 4 (AI Agent Manager & Explainability Specialist)**:
+   - Scope: Strictly `agents/` (`agents/prompts/`, `agents/tools/`, `agents/incident_agent.py`).
+   - Responsibilities: Incident analysis agent, handling conflicting reports, evaluating cybersecurity integrity, generating operator briefings and action recommendations.
 
 ## Mandatory Agent Guidelines
-- **Identify User's Role**: Before making code edits, verify which person/domain the prompt relates to.
 - **Enforce Sandbox Isolation**:
-  - If assisting Person 2: ONLY create/modify files inside `ml/`. Do not touch frontend, backend, or agents.
-  - If assisting Person 3: ONLY create/modify markdown documents inside `research/` or `docs/`.
-  - If assisting Person 4: ONLY create/modify files inside `agents/`.
-  - If assisting Person 1: Person 1 is the Full-Stack lead and integrates endpoints in `frontend/` and `backend/`.
-- **Clean Interfaces**:
-  - Person 2 should export a clean `predict(input_dict)` in `ml/pipeline.py`.
-  - Person 4 should export a clean `run_agent(prompt, context)` in `agents/agent_manager.py`.
-  - Person 1 calls these functions from `backend/`.
-- **Git Safety**: Never instruct teammates to push directly to `main` or force push. Encourage feature branches (`feature/ml-pipeline`, `feature/agent-system`, etc.).
+  - If assisting Person 2 or 3: ONLY modify files inside `data_and_ml/`.
+  - If assisting Person 4: ONLY modify files inside `agents/`.
+  - If assisting Person 1: Person 1 is the lead full-stack engineer and manages `frontend/` and `backend/`.
+- **Clean Inter-Module Interfaces**:
+  - `data_and_ml/` exports:
+    - `cluster_events(events: list) -> list[dict]`
+    - `build_causal_graph(cluster: dict) -> dict`
+    - `compute_severity_and_confidence(cluster: dict) -> dict`
+  - `agents/` exports:
+    - `analyze_incident(incident_data: dict) -> dict` (returns operator explanation, conflict assessment, recommended actions)
+  - `backend/` calls these functions to serve the API and frontend dashboard.
+- **Git Safety**: Always encourage working in feature branches (`feature/command-center`, `feature/data-and-causal-ml`, `feature/incident-agent`) and opening Pull Requests.

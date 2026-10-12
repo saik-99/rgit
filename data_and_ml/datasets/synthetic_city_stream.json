@@ -1,0 +1,80 @@
+[
+  {
+    "event_id": "EVT-1001",
+    "timestamp": "2026-10-12T10:14:00Z",
+    "received_at": "2026-10-12T10:15:30Z",
+    "source_type": "IoT_Water_Sensor",
+    "device_id": "IOT-DRAIN-402",
+    "location": { "lat": 40.7128, "lon": -74.0060, "neighborhood": "Downtown Basin" },
+    "signal": "WaterLevelSpike",
+    "value": 84.6,
+    "unit": "cm_above_normal",
+    "integrity_verified": true,
+    "confidence": 0.96
+  },
+  {
+    "event_id": "EVT-1002",
+    "timestamp": "2026-10-12T10:14:45Z",
+    "received_at": "2026-10-12T10:15:45Z",
+    "source_type": "Road_Pavement_Sensor",
+    "device_id": "ROAD-SEG-88",
+    "location": { "lat": 40.7131, "lon": -74.0058, "neighborhood": "Downtown Basin" },
+    "signal": "RoadInundation",
+    "value": "submerged_surface",
+    "integrity_verified": true,
+    "confidence": 0.91
+  },
+  {
+    "event_id": "EVT-1003",
+    "timestamp": "2026-10-12T10:16:10Z",
+    "received_at": "2026-10-12T10:16:20Z",
+    "source_type": "Traffic_Telemetry",
+    "device_id": "TRANSIT-BUS-104",
+    "location": { "lat": 40.7135, "lon": -74.0055, "neighborhood": "Downtown Basin" },
+    "signal": "TrafficSlowdown",
+    "value": 4.2,
+    "unit": "km_per_hour",
+    "integrity_verified": true,
+    "confidence": 0.88
+  },
+  {
+    "event_id": "EVT-1004",
+    "timestamp": "2026-10-12T10:11:00Z",
+    "received_at": "2026-10-12T10:22:00Z",
+    "source_type": "Citizen_311",
+    "device_id": "CALL-311-9921",
+    "location": { "lat": 40.7129, "lon": -74.0062, "neighborhood": "Downtown Basin" },
+    "signal": "Citizen311FloodCall",
+    "text": "Water gushing out of storm drain near 5th ave intersection, cars turning around.",
+    "integrity_verified": false,
+    "confidence": 0.75,
+    "note": "OUT_OF_ORDER: Event happened at 10:11 but received late at 10:22"
+  },
+  {
+    "event_id": "EVT-1005",
+    "timestamp": "2026-10-12T10:16:10Z",
+    "received_at": "2026-10-12T10:17:00Z",
+    "source_type": "Traffic_Telemetry",
+    "device_id": "TRANSIT-BUS-104",
+    "location": { "lat": 40.7135, "lon": -74.0055, "neighborhood": "Downtown Basin" },
+    "signal": "TrafficSlowdown",
+    "value": 4.2,
+    "unit": "km_per_hour",
+    "integrity_verified": true,
+    "confidence": 0.88,
+    "note": "DUPLICATE: Identical transit report sent twice"
+  },
+  {
+    "event_id": "EVT-1006",
+    "timestamp": "2026-10-12T10:18:00Z",
+    "received_at": "2026-10-12T10:18:15Z",
+    "source_type": "Citizen_App_Report",
+    "device_id": "APP-USER-314",
+    "location": { "lat": 40.7133, "lon": -74.0059, "neighborhood": "Downtown Basin" },
+    "signal": "ConflictingReport",
+    "text": "Road is completely dry, no delay at all.",
+    "integrity_verified": false,
+    "confidence": 0.20,
+    "note": "CONFLICTING: Contradicts physical sensor and transit telemetry"
+  }
+]

@@ -1,0 +1,51 @@
+{
+  "project": "UrbanIncident Fusion",
+  "version": "1.0",
+  "vocabulary": {
+    "DrainageFailure": {
+      "category": "Hydrological / Infrastructure",
+      "symptoms": [
+        "WaterLevelSpike",
+        "RoadInundation",
+        "TrafficSlowdown",
+        "Citizen311FloodCall",
+        "SubmergedSensorTelemetry"
+      ],
+      "prior_probability": 0.35,
+      "typical_severity": "High"
+    },
+    "TrafficCollision": {
+      "category": "Transportation Safety",
+      "symptoms": [
+        "CameraCrashDetection",
+        "SuddenBrakingTelemetry",
+        "Citizen911EmergencyCall",
+        "LaneBlockageSensor"
+      ],
+      "prior_probability": 0.40,
+      "typical_severity": "Medium"
+    },
+    "PowerGridFailure": {
+      "category": "Utility / Electrical",
+      "symptoms": [
+        "SubstationVoltageDrop",
+        "TrafficSignalDark",
+        "CitizenBlackoutReport",
+        "BuildingTelemetryOffline"
+      ],
+      "prior_probability": 0.15,
+      "typical_severity": "Critical"
+    },
+    "GasLeakOrHazard": {
+      "category": "Environmental / Hazard",
+      "symptoms": [
+        "AirQualityPPMSpike",
+        "AcousticSensorHiss",
+        "OdorComplaintCalls",
+        "ThermalCameraHeatAnomaly"
+      ],
+      "prior_probability": 0.10,
+      "typical_severity": "Critical"
+    }
+  }
+}

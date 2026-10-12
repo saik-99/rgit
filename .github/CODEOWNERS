@@ -1,17 +1,12 @@
-# GitHub CODEOWNERS
-# Replace placeholder usernames with your actual team member GitHub handles.
+# GitHub CODEOWNERS — UrbanIncident Fusion
 
-# Person 1 (Lead / Full-Stack) oversees root configs and app
+# Person 1 (Lead / Full-Stack)
 * @saik-99
 /frontend/ @saik-99
 /backend/ @saik-99
 
-# Person 2 (Dataset & ML Model)
-/ml/ @teammate_ml @saik-99
+# Person 2 & 3 Collaborative Squad (Data, ML, Causal Engine & Pitch)
+/data_and_ml/ @teammate_person2 @teammate_person3 @saik-99
 
-# Person 3 (Research, Product & Pitch)
-/research/ @teammate_research @saik-99
-/docs/ @teammate_research @saik-99
-
-# Person 4 (AI Agent Management & Integration)
-/agents/ @teammate_agents @saik-99
+# Person 4 (AI Agent Manager & Explainability)
+/agents/ @teammate_person4 @saik-99

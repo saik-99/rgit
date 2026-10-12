@@ -1,63 +1,93 @@
-# 🚀 Hackathon Project
+# 🏙️ UrbanIncident Fusion & Causal Intelligence
 
-A collaborative AI-powered hackathon project built by a 4-person team using **Antigravity**.
+> **Multimodal Incident Fusion, Evolving Evidence Graphs & Causal Intelligence for Smart Cities**
+
+Cities continuously generate fragmented signals: traffic cameras, citizen 311 reports, weather feeds, 911 calls, water-level IoT sensors, and road telemetry.  
+A conventional dashboard shows 4 disconnected alerts. **UrbanIncident Fusion** unifies out-of-order, noisy, and conflicting observations into an **evolving incident graph**, infers the most probable root cause (e.g. *Drainage Failure* causing *Road Inundation* and *Traffic Slowdown*), preserves uncertainty, and produces confidence-aware operational summaries.
 
 ---
 
-## 👥 The 4-Person Team Roles
+## 👥 Team Roles & Responsibilities
 
-| Role | Member | Focus Area | Directory Scope |
+| Role | Members | Domain & Sandbox Folder | Deliverables |
 | :--- | :--- | :--- | :--- |
-| **Person 1** | @saik-99 (Lead) | **Frontend & Backend** | `frontend/`, `backend/`, Root integration |
-| **Person 2** | Teammate 2 | **Dataset & ML Model** | `ml/` (data, models, inference) |
-| **Person 3** | Teammate 3 | **Researcher & Pitch/Product** | `research/`, `docs/` |
-| **Person 4** | Teammate 4 | **Managing & Integrating AI Agents** | `agents/` (prompts, tools, loops) |
+| **Person 1** | @saik-99 (Lead) | `frontend/`, `backend/` | Ingestion API, WebSocket/event stream, Operator Incident Command Dashboard, Downstream API |
+| **Person 2 & 3** | Teammates 2 & 3 (Working Together) | `data_and_ml/` | **Person 2**: Synthetic multimodal stream, spatiotemporal clustering, causal graph builder, severity model.<br>**Person 3**: Incident vocabulary schema, scenario benchmarks (out-of-order, duplicates, sensor spoofing), pitch deck & demo script. |
+| **Person 4** | Teammate 4 | `agents/` | Incident Analyst AI Agent, causal hypothesis generation, conflict resolution, operator briefing & action recommendation |
 
 👉 **Read the comprehensive step-by-step role guides:** [ROLE_GUIDE.md](ROLE_GUIDE.md)  
 👉 **Read Git & Antigravity contribution workflow:** [TEAM_WORKFLOW.md](TEAM_WORKFLOW.md)
 
 ---
 
-## 📁 Repository Structure
+## 🏛️ System Architecture
 
 ```text
-├── .agents/
-│   └── rules/
-│       └── hackathon_roles.md   # Antigravity AI guardrail rule
-├── .github/
-│   ├── CODEOWNERS               # Auto-assigns reviewers per domain
-│   └── pull_request_template.md # PR pre-merge checklist
-├── frontend/                    # [Person 1] Web UI application
-├── backend/                     # [Person 1] API server & DB connections
-├── ml/                          # [Person 2] Machine learning & datasets
-│   ├── data/                    # Raw & preprocessed datasets
-│   ├── models/                  # Model weights / artifacts
-│   └── pipeline.py              # Clean predict() inference runner
-├── research/                    # [Person 3] Market research, pitch deck, demo script
-│   ├── PITCH_DECK_OUTLINE.md
-│   ├── DEMO_SCRIPT.md
-│   └── BENCHMARKS_AND_EVALS.md
-├── agents/                      # [Person 4] AI Agents management & workflows
-│   ├── prompts/                 # System prompts & few-shot instructions
-│   ├── tools/                   # Agent tool functions
-│   └── agent_manager.py         # Agent orchestrator loop
-├── ROLE_GUIDE.md                # Detailed guide for each member
-├── TEAM_WORKFLOW.md             # Git cheatsheet & safety protocol
-└── README.md
+[ IoT Sensors / Cameras / 311 Calls / Weather / Telemetry ]
+                           │
+                           ▼
+          ┌───────────────────────────────────┐
+          │     Backend Ingestion Layer       │ (Person 1)
+          │  - De-duplication & Timestamping  │
+          │  - Cybersecurity Integrity Check  │
+          └─────────────────┬─────────────────┘
+                            │
+                            ▼
+          ┌───────────────────────────────────┐
+          │   Spatiotemporal Event Fusion     │ (Person 2 & 3)
+          │  - Geospatial (lat/lon) radius    │
+          │  - Temporal sliding window        │
+          └─────────────────┬─────────────────┘
+                            │
+                            ▼
+          ┌───────────────────────────────────┐
+          │  Causal Evidence & Severity Graph │ (Person 2 & 3)
+          │  - Directed Acyclic Evidence DAG  │
+          │  - Root Cause Probability (Bayes) │
+          │  - Severity & Confidence Scoring  │
+          └─────────────────┬─────────────────┘
+                            │
+                            ▼
+          ┌───────────────────────────────────┐
+          │   Autonomous Incident AI Agent    │ (Person 4)
+          │  - Reconstructs out-of-order data │
+          │  - Resolves conflicting reports   │
+          │  - Operator Briefing & Actions    │
+          └─────────────────┬─────────────────┘
+                            │
+                            ▼
+          ┌───────────────────────────────────┐
+          │ Operator Incident Command Console │ (Person 1)
+          │  - Live Incident Map & DAG View   │
+          │  - Evolving Confidence & Timeline │
+          └───────────────────────────────────┘
 ```
+
+---
+
+## 🚀 24-Hour Hackathon Demo Scenarios
+
+1. **Scenario 1: The Cascading Drainage Failure (Core Proof)**
+   - *Signals*: Water-level sensor spikes ➔ Traffic slows down ➔ 311 reports flood ➔ Road sensor triggers.
+   - *Challenge*: 311 report arrives 10 minutes late; water-level sensor briefly drops offline.
+   - *Result*: Fuses 4 alerts into 1 incident with 93% confidence root cause: `Drainage Inundation`.
+2. **Scenario 2: Traffic Collision vs False Alarm**
+   - *Signals*: Traffic camera collision detection + emergency call. Conflicting report claims "road clear".
+   - *Result*: Agent identifies conflict, weighs camera integrity over noisy report, and maintains uncertainty score.
+3. **Scenario 3: IoT Sensor Tampering / Anomaly**
+   - *Signals*: Water sensor reports flood while adjacent sensors and cameras show dry weather.
+   - *Result*: Cybersecurity integrity flag isolates sensor as anomalous.
 
 ---
 
 ## ⚡ Quick Start for Team Members
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/saik-99/rgit.git
-   cd rgit
-   ```
-2. **Switch to your assigned branch:**
-   - Person 1: `git checkout -b feature/fullstack`
-   - Person 2: `git checkout -b feature/ml-pipeline`
-   - Person 3: `git checkout -b feature/research-pitch`
-   - Person 4: `git checkout -b feature/ai-agents`
-3. **Open the repository in Antigravity IDE.** Antigravity will automatically adhere to the guardrails configured in `.agents/rules/hackathon_roles.md`.
+```bash
+git clone https://github.com/saik-99/rgit.git
+cd rgit
+
+# Branch out based on your role:
+git checkout -b feature/fullstack-command   # Person 1
+git checkout -b feature/data-ml-causal      # Person 2 & 3
+git checkout -b feature/incident-agent      # Person 4
+```
