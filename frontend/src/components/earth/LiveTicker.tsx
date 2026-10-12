@@ -14,6 +14,7 @@ interface TickerItem {
 
 interface LiveTickerProps {
   activeCity: string
+  incidents?: any[]
 }
 
 const INDIAN_CITIES = ['mumbai', 'pune', 'nagpur', 'delhi', 'bengaluru', 'hyderabad', 'guwahati']
@@ -57,10 +58,30 @@ const SAMPLE_FEEDS_BY_CITY: Record<string, string[]> = {
   ],
 }
 
-export const LiveTicker: React.FC<LiveTickerProps> = ({ activeCity }) => {
+export const LiveTicker: React.FC<LiveTickerProps> = ({ activeCity, incidents }) => {
   const [messages, setMessages] = useState<TickerItem[]>([])
 
   useEffect(() => {
+    if (incidents && incidents.length > 0) {
+      const topItems: TickerItem[] = incidents.slice(0, 3).map((inc, idx) => {
+        const cause = formatCause(inc.primary_cause || inc.cause)
+        const title =
+          inc.title && !inc.title.startsWith('SYN-') && !inc.title.startsWith('REAL-EV-')
+            ? inc.title
+            : `${cause} advisory`
+        return {
+          id: `inc-${inc.incident_id || idx}`,
+          text: `${cause}: ${title}`,
+          time: idx === 0 ? 'Just now' : `${idx}m ago`,
+          type: 'incident',
+          city: inc.city || (activeCity === 'all' ? 'All India' : activeCity),
+          count: 1,
+        }
+      })
+      setMessages(topItems)
+      return
+    }
+
     const isAll = activeCity.toLowerCase() === 'all'
     const targetCity = isAll ? 'mumbai' : activeCity.toLowerCase()
     const feeds = SAMPLE_FEEDS_BY_CITY[targetCity] || SAMPLE_FEEDS_BY_CITY.mumbai
@@ -75,7 +96,7 @@ export const LiveTicker: React.FC<LiveTickerProps> = ({ activeCity }) => {
     }))
 
     setMessages(initial)
-  }, [activeCity])
+  }, [activeCity, incidents])
 
   useEffect(() => {
     let ws: WebSocket | null = null
@@ -122,7 +143,10 @@ export const LiveTicker: React.FC<LiveTickerProps> = ({ activeCity }) => {
               }
 
               const friendlyType = formatSourceType(evt.source_type)
-              const rawDesc = evt.payload?.text || evt.payload?.description || `Sensor signal ${evt.event_id || ''}`
+              let rawDesc = evt.payload?.text || evt.payload?.description || `Sensor signal ${evt.event_id || ''}`
+              if (rawDesc.startsWith('SYN-') || rawDesc.startsWith('REAL-EV-')) {
+                rawDesc = 'Telemetry sensor signal'
+              }
               const msgText = `${friendlyType}: ${rawDesc}`
 
               addOrMergeMessage(msgText, 'event', evtCity)
@@ -137,7 +161,10 @@ export const LiveTicker: React.FC<LiveTickerProps> = ({ activeCity }) => {
               }
 
               const causeFriendly = formatCause(inc.cause || inc.primary_cause)
-              const title = inc.title || `${inc.incident_id || inc.id} updated`
+              const title =
+                inc.title && !inc.title.startsWith('SYN-') && !inc.title.startsWith('REAL-EV-')
+                  ? inc.title
+                  : `${causeFriendly} advisory`
               addOrMergeMessage(`${causeFriendly}: ${title}`, 'incident', incCity)
             }
           } catch {

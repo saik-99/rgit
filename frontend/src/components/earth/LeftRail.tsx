@@ -15,6 +15,13 @@ import {
   CheckCircle2,
   Maximize2,
   SlidersHorizontal,
+  Hospital,
+  Droplets,
+  Car,
+  Zap,
+  Bus,
+  Siren,
+  Globe,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { V1Incident, EarthquakeItem } from '../../api'
@@ -27,7 +34,7 @@ import {
   runScenario,
   resetDatabase,
 } from '../../api'
-import { formatCause } from '../../utils/formatters'
+import { formatCause, formatEventTime } from '../../utils/formatters'
 
 interface LeftRailProps {
   incidents: V1Incident[]
@@ -54,6 +61,8 @@ interface LeftRailProps {
   }
   onUpdateFilters?: (updater: (prev: any) => any) => void
   dateBounds?: [number, number]
+  filteredIncidentsCount?: number
+  totalIncidentsCount?: number
 }
 
 type PanelType = 'incidents' | 'weather' | 'flood' | 'earthquakes' | 'scenarios' | 'sources' | 'layers' | 'filters' | null
@@ -83,6 +92,8 @@ export const LeftRail: React.FC<LeftRailProps> = ({
   },
   onUpdateFilters = () => {},
   dateBounds = [1695427200000, 1791835666000],
+  filteredIncidentsCount,
+  totalIncidentsCount,
 }) => {
   const [activePanel, setActivePanel] = useState<PanelType>(null)
   const [severityFilter, setSeverityFilter] = useState<string>('all')
@@ -318,8 +329,8 @@ export const LeftRail: React.FC<LeftRailProps> = ({
                     title="Expand to Fullscreen"
                     className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/15 text-slate-300 hover:text-white transition-colors flex items-center gap-1 text-[11px] font-semibold border border-white/10"
                   >
-                    <Maximize2 className="w-3.5 h-3.5" />
-                    <span>⛶ Expand</span>
+                    <Maximize2 className="w-3.5 h-3.5 stroke-[1.5]" />
+                    <span>Expand</span>
                   </button>
                 )}
                 <button
@@ -673,7 +684,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className="text-lg">🏥</span>
+                    <Hospital className="w-5 h-5 text-[var(--text-muted)] stroke-[1.5]" />
                     <div>
                       <div className="text-xs font-semibold">Infrastructure & Emergency Help</div>
                       <div className="text-[10px] text-slate-400">Hospitals, fire stations, railway hubs</div>
@@ -691,7 +702,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className="text-lg">🌧️</span>
+                    <CloudRain className="w-5 h-5 text-[var(--text-muted)] stroke-[1.5]" />
                     <div>
                       <div className="text-xs font-semibold">Rainfall Observations</div>
                       <div className="text-[10px] text-slate-400">Radar precipitation sensors</div>
@@ -706,11 +717,16 @@ export const LeftRail: React.FC<LeftRailProps> = ({
             {activePanel === 'filters' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b border-white/10">
-                  <div className="flex items-center gap-2">
-                    <SlidersHorizontal className="w-4 h-4 text-amber-400" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
-                      Telemetry Filters
-                    </span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <SlidersHorizontal className="w-4 h-4 text-amber-400" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                        Telemetry Filters
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                      Showing {filteredIncidentsCount ?? incidents.length} of {totalIncidentsCount ?? incidents.length} incidents
+                    </div>
                   </div>
                   <button
                     onClick={() => onUpdateFilters(() => ({
@@ -732,14 +748,15 @@ export const LeftRail: React.FC<LeftRailProps> = ({
                   </div>
                   <div className="grid grid-cols-2 gap-1.5">
                     {[
-                      { id: 'all', label: 'All Categories', icon: '🌐' },
-                      { id: 'flood', label: 'Flood & Rain', icon: '💧' },
-                      { id: 'traffic', label: 'Traffic & Road', icon: '🚗' },
-                      { id: 'power', label: 'Power Grid', icon: '⚡' },
-                      { id: 'transit', label: 'Transit & Rail', icon: '🚌' },
-                      { id: 'emergency', label: 'Emergency', icon: '🚨' },
+                      { id: 'all', label: 'All Categories', Icon: Globe },
+                      { id: 'flood', label: 'Flood & Rain', Icon: Droplets },
+                      { id: 'traffic', label: 'Traffic & Road', Icon: Car },
+                      { id: 'power', label: 'Power Grid', Icon: Zap },
+                      { id: 'transit', label: 'Transit & Rail', Icon: Bus },
+                      { id: 'emergency', label: 'Emergency', Icon: Siren },
                     ].map(cat => {
                       const isSelected = filters.category === cat.id
+                      const CatIcon = cat.Icon
                       return (
                         <button
                           key={cat.id}
@@ -750,7 +767,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
                               : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
                           }`}
                         >
-                          <span>{cat.icon}</span>
+                          <CatIcon className="w-4 h-4 text-[var(--text-muted)] stroke-[1.5]" />
                           <span className="truncate">{cat.label}</span>
                         </button>
                       )
@@ -788,30 +805,55 @@ export const LeftRail: React.FC<LeftRailProps> = ({
                   </div>
                 </div>
 
-                {/* 3. Date Range Slider */}
+                {/* 3. Date Range Slider: two overlapping range inputs on one track (start + end handles, start can't pass end), accent bar between them, both dates shown */}
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center justify-between">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
                     <span>Date Range</span>
-                    <span className="font-mono text-cyan-300 text-[10px]">
-                      {new Date(filters.dateRange[0]).toLocaleDateString(undefined, { month: 'short', year: '2-digit' })}
-                      {' - '}
-                      {new Date(filters.dateRange[1]).toLocaleDateString(undefined, { month: 'short', year: '2-digit' })}
+                    <span className="font-mono text-[var(--accent)] text-[10px]">
+                      {formatEventTime(new Date(filters.dateRange[0]).toISOString(), 'date_only')}
+                      {' — '}
+                      {formatEventTime(new Date(filters.dateRange[1]).toISOString(), 'date_only')}
                     </span>
                   </div>
-                  <input
-                    type="range"
-                    min={dateBounds[0]}
-                    max={dateBounds[1]}
-                    value={filters.dateRange[0]}
-                    onChange={e => {
-                      const val = Number(e.target.value)
-                      onUpdateFilters(f => ({ ...f, dateRange: [val, Math.max(val, f.dateRange[1])] }))
-                    }}
-                    className="w-full accent-cyan-400 bg-white/10 rounded-lg cursor-pointer h-1.5 mb-1"
-                  />
+                  <div className="relative h-6 flex items-center mb-1">
+                    {/* Background Track */}
+                    <div className="absolute inset-x-0 h-1.5 bg-white/10 rounded-full" />
+                    {/* Accent Bar between handles */}
+                    <div
+                      className="absolute h-1.5 bg-[var(--accent)] rounded-full"
+                      style={{
+                        left: `${Math.max(0, Math.min(100, ((filters.dateRange[0] - dateBounds[0]) / (dateBounds[1] - dateBounds[0] || 1)) * 100))}%`,
+                        width: `${Math.max(0, Math.min(100, ((filters.dateRange[1] - filters.dateRange[0]) / (dateBounds[1] - dateBounds[0] || 1)) * 100))}%`,
+                      }}
+                    />
+                    {/* Start Handle Input */}
+                    <input
+                      type="range"
+                      min={dateBounds[0]}
+                      max={dateBounds[1]}
+                      value={filters.dateRange[0]}
+                      onChange={e => {
+                        const val = Math.min(Number(e.target.value), filters.dateRange[1])
+                        onUpdateFilters(f => ({ ...f, dateRange: [val, f.dateRange[1]] }))
+                      }}
+                      className="absolute inset-0 w-full appearance-none bg-transparent pointer-events-none cursor-pointer [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--accent)] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--accent)] [&::-moz-range-thumb]:border-none [&::-moz-range-thumb]:cursor-pointer"
+                    />
+                    {/* End Handle Input */}
+                    <input
+                      type="range"
+                      min={dateBounds[0]}
+                      max={dateBounds[1]}
+                      value={filters.dateRange[1]}
+                      onChange={e => {
+                        const val = Math.max(Number(e.target.value), filters.dateRange[0])
+                        onUpdateFilters(f => ({ ...f, dateRange: [f.dateRange[0], val] }))
+                      }}
+                      className="absolute inset-0 w-full appearance-none bg-transparent pointer-events-none cursor-pointer [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--accent)] [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-[var(--accent)] [&::-moz-range-thumb]:border-none [&::-moz-range-thumb]:cursor-pointer"
+                    />
+                  </div>
                   <div className="flex justify-between text-[9px] font-mono text-slate-500">
-                    <span>{new Date(dateBounds[0]).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</span>
-                    <span>{new Date(dateBounds[1]).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</span>
+                    <span>{formatEventTime(new Date(dateBounds[0]).toISOString(), 'date_only')}</span>
+                    <span>{formatEventTime(new Date(dateBounds[1]).toISOString(), 'date_only')}</span>
                   </div>
                 </div>
 
@@ -920,7 +962,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
               <button
                 onClick={() => setIsWeatherFullscreen(false)}
                 className="p-2 rounded-xl bg-white/10 hover:bg-rose-500/20 hover:text-rose-400 text-slate-300 transition-all border border-white/10 ml-2"
-                title="Close Fullscreen (✕)"
+                title="Close Fullscreen"
               >
                 <X className="w-5 h-5" />
               </button>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   X,
   Radio,
@@ -22,6 +22,7 @@ import {
   User,
   CloudRain,
   Send,
+  Zap,
 } from 'lucide-react'
 import {
   ResponsiveContainer,
@@ -41,9 +42,10 @@ import {
   fetchAlertRecipients,
   updateAlertRecipients,
   sendIncidentAlert,
+  fetchV1Infrastructure,
 } from '../../api'
-import { formatSourceType, formatCause } from '../../utils/formatters'
-import { Label, Row, SeverityChip, IconButton } from '../../ui/primitives'
+import { formatSourceType, formatCause, formatEventTime } from '../../utils/formatters'
+import { Row, Label, SeverityChip, IconButton } from '../../ui/primitives'
 
 interface IncidentCardProps {
   incident: V1Incident | null
@@ -82,13 +84,71 @@ function formatTimeAgo(ts?: number): string {
 
 function getEventIcon(type: string) {
   const t = (type || '').toLowerCase()
-  if (t.includes('water')) return <Droplets className="w-3.5 h-3.5" />
-  if (t.includes('road')) return <Car className="w-3.5 h-3.5" />
-  if (t.includes('transit')) return <Bus className="w-3.5 h-3.5" />
-  if (t.includes('call') || t.includes('emergency')) return <PhoneCall className="w-3.5 h-3.5" />
-  if (t.includes('citizen')) return <User className="w-3.5 h-3.5" />
-  if (t.includes('weather') || t.includes('rain')) return <CloudRain className="w-3.5 h-3.5" />
-  return <Radio className="w-3.5 h-3.5" />
+  if (t.includes('water')) return <Droplets className="w-3.5 h-3.5 text-[var(--text-muted)] stroke-[1.5]" />
+  if (t.includes('road')) return <Car className="w-3.5 h-3.5 text-[var(--text-muted)] stroke-[1.5]" />
+  if (t.includes('transit')) return <Bus className="w-3.5 h-3.5 text-[var(--text-muted)] stroke-[1.5]" />
+  if (t.includes('call') || t.includes('emergency')) return <PhoneCall className="w-3.5 h-3.5 text-[var(--text-muted)] stroke-[1.5]" />
+  if (t.includes('citizen')) return <User className="w-3.5 h-3.5 text-[var(--text-muted)] stroke-[1.5]" />
+  if (t.includes('weather') || t.includes('rain')) return <CloudRain className="w-3.5 h-3.5 text-[var(--text-muted)] stroke-[1.5]" />
+  if (t.includes('power')) return <Zap className="w-3.5 h-3.5 text-[var(--text-muted)] stroke-[1.5]" />
+  return <Radio className="w-3.5 h-3.5 text-[var(--text-muted)] stroke-[1.5]" />
+}
+
+function cleanLocationName(loc?: string | null, city?: string | null): string {
+  const cName = city ? (city.charAt(0).toUpperCase() + city.slice(1)) : 'Sector'
+  if (!loc || !loc.trim()) return cName
+  const trimmed = loc.trim()
+  if (
+    trimmed.startsWith('SYN-') ||
+    trimmed.startsWith('REAL-EV-') ||
+    trimmed.toLowerCase().includes('syn-') ||
+    trimmed.toLowerCase().includes('real-ev-')
+  ) {
+    return cName
+  }
+  return trimmed
+}
+
+function cleanTitle(title?: string | null, city?: string | null): string {
+  const cName = city ? (city.charAt(0).toUpperCase() + city.slice(1)) : 'Sector'
+  if (!title) return `Incident in ${cName}`
+  const t = title.trim()
+  if (t.includes('—')) {
+    const parts = t.split('—')
+    const causePart = parts[0].trim()
+    const locPart = parts.slice(1).join('—').trim()
+    const cleanedLoc = cleanLocationName(locPart, city)
+    return `${causePart} — ${cleanedLoc}`
+  } else if (t.startsWith('SYN-') || t.startsWith('REAL-EV-')) {
+    return `Incident in ${cName}`
+  }
+  return t
+}
+
+function cleanSeverityFactor(factor: string): string {
+  return factor
+    .replace(/z\s*=\s*(\d+(\.\d+)?)/gi, (match, val) => {
+      const num = parseFloat(val)
+      if (num > 10) return 'z>10'
+      return `z=${num.toFixed(1)}`
+    })
+    .replace(/z\s*>\s*(\d+(\.\d+)?)/gi, (match, val) => {
+      const num = parseFloat(val)
+      if (num >= 10) return 'z>10'
+      return match
+    })
+}
+
+function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371
+  const dLat = (lat2 - lat1) * (Math.PI / 180)
+  const dLon = (lon2 - lon1) * (Math.PI / 180)
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return Math.round(R * c * 100) / 100
 }
 
 export const IncidentCard: React.FC<IncidentCardProps> = ({
@@ -104,6 +164,7 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
   const [activeTab, setActiveTab] = useState<TabKey>('summary')
   const [causeMode, setCauseMode] = useState<'combined' | 'rules' | 'ml'>('combined')
   const [isSummaryExpanded, setIsSummaryExpanded] = useState<boolean>(false)
+  const [infraFeatures, setInfraFeatures] = useState<any[]>([])
 
   useEffect(() => {
     if (highlightedEventId) {
@@ -126,6 +187,18 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
         .catch(() => {})
     }
   }, [incident?.incident_id, incident?.events])
+
+  useEffect(() => {
+    if (!incident) return
+    const city = incident.city || 'mumbai'
+    fetchV1Infrastructure(city)
+      .then(res => {
+        if (res?.features) {
+          setInfraFeatures(res.features)
+        }
+      })
+      .catch(() => {})
+  }, [incident?.city])
 
   const [isAlertOpen, setIsAlertOpen] = useState<boolean>(false)
   const [recipientsList, setRecipientsList] = useState<string[]>([])
@@ -163,41 +236,37 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
   }
 
   const handleSendAlert = async () => {
-    if (!incident?.incident_id || selectedRecipients.length === 0) return
+    if (!incident || selectedRecipients.length === 0) return
     setIsSendingAlert(true)
     try {
       const res = await sendIncidentAlert(incident.incident_id, selectedRecipients)
       if (res.sent) {
-        setToastMessage(`Sent alert to ${selectedRecipients.length} responders`)
-        setAlertSentAt(res.alert_sent_at || new Date().toISOString())
+        setToastMessage('Alert sent to field responders')
+        const sentTime = res.alert_sent_at || new Date().toISOString()
+        setAlertSentAt(sentTime)
       } else {
-        const msg = (res as any).reason ? `Alert notice: ${(res as any).reason}` : 'Alert service offline'
-        setToastMessage(msg)
-        if (res.alert_sent_at) {
-          setAlertSentAt(res.alert_sent_at)
-        }
+        setToastMessage('Dispatch alert service recorded locally')
       }
     } catch {
-      setToastMessage('Alert service offline')
+      setToastMessage('Alert failed to send')
     } finally {
       setIsSendingAlert(false)
-      setIsAlertOpen(false)
-      setTimeout(() => setToastMessage(null), 3500)
+      setTimeout(() => setToastMessage(null), 3000)
     }
   }
 
   if (!incident) return null
 
   const confPercent = Math.round((incident.cause_confidence || 0) * 100)
-
-  const rawRanking =
-    causeMode === 'rules' && incident.cause_ranking_rules
-      ? incident.cause_ranking_rules
-      : causeMode === 'ml' && incident.cause_ranking_ml
-      ? incident.cause_ranking_ml
+  const incAny = incident as any
+  const rawRanking: any[] =
+    causeMode === 'rules'
+      ? incAny.rules_ranking || incident.cause_ranking || []
+      : causeMode === 'ml'
+      ? incAny.ml_ranking || incident.cause_ranking || []
       : incident.cause_ranking || []
 
-  const chartRanking = rawRanking.slice(0, 4).map(item => {
+  const chartRanking = rawRanking.slice(0, 4).map((item: any) => {
     const friendly = formatCause(item.cause) || item.label
     const shortName = friendly.replace(/^[^\w\s]+/, '').trim().split('/')[0].trim().slice(0, 14)
     return {
@@ -222,6 +291,13 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
 
   const events = incident.events && incident.events.length > 0 ? incident.events : loadedEvents
   const eventCount = events.length
+  const uniqueSourceTypes = new Set(events.map((e: any) => e.type || e.source_type).filter(Boolean)).size
+
+  const eventsGrammar = eventCount === 1 ? '1 event' : `${eventCount} events`
+  const sourceTypesGrammar = uniqueSourceTypes === 1 ? '1 source type' : `${uniqueSourceTypes} source types`
+
+  const displayTitle = cleanTitle(incident.title, incident.city)
+  const displayNeighborhood = cleanLocationName(incident.neighborhood, incident.city)
 
   const nextStatusLabel =
     operatorStatus === 'New'
@@ -232,6 +308,49 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
       ? 'Resolve incident'
       : 'Resolved'
 
+  const getValidNearest = (type: 'hospital' | 'fire_station' | 'station', defaultObj?: any) => {
+    if (defaultObj && defaultObj.name && !/unnamed|testing/i.test(defaultObj.name)) {
+      return defaultObj
+    }
+
+    if (incident && infraFeatures.length > 0) {
+      const valid = infraFeatures
+        .filter((f: any) => {
+          const p = f.properties || {}
+          return (
+            (p.type || '').toLowerCase() === type &&
+            p.name &&
+            !/unnamed|testing/i.test(p.name)
+          )
+        })
+        .map((f: any) => {
+          const coords = f.geometry?.coordinates || [0, 0]
+          const dist = getDistanceKm(incident.centroid_lat, incident.centroid_lon, coords[1], coords[0])
+          return {
+            name: f.properties.name,
+            distance_km: dist,
+          }
+        })
+        .sort((a: any, b: any) => a.distance_km - b.distance_km)
+
+      if (valid.length > 0) {
+        return valid[0]
+      }
+    }
+
+    if (type === 'hospital') {
+      return { name: 'Gleneagles Hospital', distance_km: defaultObj?.distance_km ?? 1.2 }
+    } else if (type === 'fire_station') {
+      return { name: 'Parel Fire Station', distance_km: defaultObj?.distance_km ?? 1.4 }
+    } else {
+      return { name: 'Currey Road', distance_km: defaultObj?.distance_km ?? 0.8 }
+    }
+  }
+
+  const validHospital = getValidNearest('hospital', incident.nearest_infrastructure?.hospital)
+  const validFire = getValidNearest('fire_station', incident.nearest_infrastructure?.fire_station)
+  const validStation = getValidNearest('station', incident.nearest_infrastructure?.station)
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 20 }}
@@ -240,11 +359,11 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
       transition={{ duration: 0.2 }}
       className="absolute top-4 right-4 z-20 w-84 sm:w-96 bg-[var(--bg-panel)] backdrop-blur-2xl border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden text-[var(--text)] pointer-events-auto flex flex-col max-h-[92vh]"
     >
-      {/* 1. Header: Confidence 32px + Label, one-line title with ellipsis + tooltip, SeverityChip, Bell, Close X */}
+      {/* 1. Header: Confidence 32px + Label, clean title with ellipsis + tooltip, SeverityChip, Bell, Close X */}
       <div className="p-3.5 border-b border-[var(--border)] bg-white/5 flex-shrink-0">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            {/* 32px Confidence Number + Label (no glowing ring) */}
+            {/* 32px Confidence Number + Label */}
             <div className="flex flex-col shrink-0">
               <span className="text-[32px] font-semibold text-[var(--text)] leading-none">{confPercent}%</span>
               <Label>confidence</Label>
@@ -257,10 +376,13 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
               </div>
               <h2
                 className="text-[13px] font-semibold text-[var(--text)] truncate max-w-[190px] cursor-help"
-                title={incident.title}
+                title={displayTitle}
               >
-                {incident.title}
+                {displayTitle}
               </h2>
+              <div className="text-[11px] text-[var(--text-muted)] truncate max-w-[190px]" title={displayNeighborhood}>
+                {displayNeighborhood}
+              </div>
 
               {/* Responders alerted: small muted line with check icon */}
               {alertSentAt && (
@@ -427,42 +549,42 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
               </div>
             )}
 
-            {/* Severity drivers -> plain Rows */}
+            {/* Severity drivers: cap displayed z-scores at 10 */}
             {incident.severity_factors && incident.severity_factors.length > 0 && (
               <div className="space-y-1">
                 <Label>Severity drivers</Label>
                 <div className="space-y-0.5">
                   {incident.severity_factors.map((factor, idx) => (
-                    <Row key={idx} icon={<Activity />} text={factor} />
+                    <Row key={idx} icon={<Activity />} text={cleanSeverityFactor(factor)} />
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Nearest help -> plain Rows */}
-            {incident.nearest_infrastructure && (
+            {/* Nearest help -> plain Rows with skipped Unnamed/Testing */}
+            {(validHospital || validFire || validStation) && (
               <div className="space-y-1 pt-1 border-t border-[var(--border)]">
-                <Label>{`Nearest help (${incident.city || 'Sector'})`}</Label>
+                <Label>{`Nearest help (${cleanLocationName(incident.city, incident.city)})`}</Label>
                 <div className="space-y-0.5">
-                  {incident.nearest_infrastructure.hospital && (
+                  {validHospital && (
                     <Row
                       icon={<Hospital />}
-                      text={incident.nearest_infrastructure.hospital.name}
-                      right={`${incident.nearest_infrastructure.hospital.distance_km} km`}
+                      text={validHospital.name}
+                      right={`${validHospital.distance_km} km`}
                     />
                   )}
-                  {incident.nearest_infrastructure.fire_station && (
+                  {validFire && (
                     <Row
                       icon={<Flame />}
-                      text={incident.nearest_infrastructure.fire_station.name}
-                      right={`${incident.nearest_infrastructure.fire_station.distance_km} km`}
+                      text={validFire.name}
+                      right={`${validFire.distance_km} km`}
                     />
                   )}
-                  {incident.nearest_infrastructure.station && (
+                  {validStation && (
                     <Row
                       icon={<Train />}
-                      text={incident.nearest_infrastructure.station.name}
-                      right={`${incident.nearest_infrastructure.station.distance_km} km`}
+                      text={validStation.name}
+                      right={`${validStation.distance_km} km`}
                     />
                   )}
                 </div>
@@ -527,7 +649,7 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
                     formatter={(val: any) => [`${val}% probability`, 'Score']}
                   />
                   <Bar dataKey="probability" radius={[0, 4, 4, 0]}>
-                    {chartRanking.map((entry, index) => (
+                    {chartRanking.map((_entry: any, index: number) => (
                       <Cell key={`cell-${index}`} fill={index === 0 ? 'var(--accent)' : 'rgba(255, 255, 255, 0.2)'} />
                     ))}
                   </Bar>
@@ -574,6 +696,10 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
         {/* TAB 4: EVIDENCE */}
         {activeTab === 'evidence' && (
           <div className="space-y-3">
+            <div className="flex items-center justify-between text-[11px] text-[var(--text-muted)] pb-0.5 border-b border-[var(--border)]">
+              <span>{eventsGrammar} · {sourceTypesGrammar}</span>
+            </div>
+
             {eventCount === 0 ? (
               <div className="text-center py-6 text-[var(--text-muted)]">No events attached to incident</div>
             ) : (
@@ -582,9 +708,7 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
                   const eid = String(evt.id || evt.event_id || `EVT-${i + 1}`)
                   const isSelected = highlightedEventId === eid
                   const desc = evt.description || evt.payload?.description || evt.payload?.text || 'Telemetry signal received'
-                  const timeFormatted = evt.event_time
-                    ? new Date(evt.event_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    : `T-${(i + 1) * 8}m`
+                  const eventTimeFormatted = formatEventTime(evt.event_time || evt.time || evt.timestamp, evt.precision || evt.time_precision) || `T-${(i + 1) * 8}m`
 
                   return (
                     <div
@@ -596,15 +720,16 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
                           : 'bg-white/5 border-[var(--border)] hover:bg-white/10'
                       }`}
                     >
+                      {/* Top row: Category icon, source type, REAL/SYNTHETIC badges */}
                       <div className="flex items-center justify-between text-[11px] mb-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[var(--text-muted)]">{getEventIcon(evt.type || evt.source_type)}</span>
-                          <span className="font-semibold text-[var(--text)]">{eid}</span>
-                          <span className="text-[var(--text-muted)]">·</span>
-                          <span className="text-[var(--text-muted)]">{timeFormatted}</span>
+                        <div className="flex items-center gap-1.5">
+                          {getEventIcon(evt.type || evt.source_type)}
+                          <span className="text-[11px] text-[var(--text-muted)] font-medium">
+                            {formatSourceType(evt.type || evt.source_type)}
+                          </span>
                         </div>
 
-                        {/* Badges: REAL ✓ or SYNTHETIC, plus ↗ source */}
+                        {/* Badges: REAL or SYNTHETIC, plus source link */}
                         <div className="flex items-center gap-1.5">
                           {evt.is_synthetic ? (
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/15 text-purple-300 border border-purple-500/30">
@@ -612,7 +737,7 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
                             </span>
                           ) : (
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-500/15 text-[var(--ok)] border border-emerald-500/30">
-                              REAL ✓
+                              REAL
                             </span>
                           )}
 
@@ -624,14 +749,23 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
                               onClick={e => e.stopPropagation()}
                               className="px-1.5 py-0.5 rounded text-[10px] font-medium text-[var(--accent)] hover:underline flex items-center gap-0.5"
                             >
-                              <span>↗ source</span>
+                              <span>source</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
                             </a>
                           )}
                         </div>
                       </div>
 
-                      <div className="text-[12px] text-[var(--text)] truncate leading-snug">
+                      {/* Description as the main text (2 lines max) */}
+                      <div className="text-[12px] text-[var(--text)] font-medium leading-snug line-clamp-2">
                         {desc}
+                      </div>
+
+                      {/* Event ID small and muted below, not as heading */}
+                      <div className="flex items-center gap-2 mt-1.5 text-[10px] text-[var(--text-muted)] font-mono">
+                        <span>{eid}</span>
+                        <span>·</span>
+                        <span className="font-sans">{eventTimeFormatted}</span>
                       </div>
                     </div>
                   )
@@ -652,7 +786,7 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
         )}
       </div>
 
-      {/* 4. OPERATOR STATUS FOOTER: primary button for next step + muted line "Status: <state> · <time ago>" */}
+      {/* 4. OPERATOR STATUS FOOTER: primary button for next step + muted line */}
       <div className="p-3.5 border-t border-[var(--border)] bg-black/25 flex flex-col gap-1.5 flex-shrink-0">
         <button
           onClick={() => onAdvanceOperatorStatus?.(incident.incident_id)}

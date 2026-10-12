@@ -200,13 +200,13 @@ export const EarthPage: React.FC = () => {
     if (isAll) {
       getAllIndiaMaxRainfall().then(({ maxRain, maxCity }) => {
         if (isMounted) {
-          setRainText(`Max ${maxRain} mm · ${maxCity}`)
+          setRainText(`Max ${maxRain} mm today · ${maxCity}`)
         }
       })
     } else {
       getCityRainfall(norm).then(val => {
         if (isMounted) {
-          setRainText(`${val} mm`)
+          setRainText(`${val} mm today`)
         }
       })
     }
@@ -352,11 +352,69 @@ export const EarthPage: React.FC = () => {
     }
   }, [eventsGeoJSON, filters])
 
+  // 2.a: filteredIncidents useMemo over incidents + filters
+  const filteredIncidents = useMemo(() => {
+    return incidents.filter(inc => {
+      // 1. Severity: severity_level case-insensitive
+      if (filters.severity && filters.severity !== 'all') {
+        if ((inc.severity_level || '').toLowerCase() !== filters.severity.toLowerCase()) {
+          return false
+        }
+      }
+
+      // 2. Category: match primary_cause/title or any event taxonomy_code
+      // (flood: FLOOD|WEATHER|drainage|water, traffic: TRAFFIC|accident|blockage,
+      //  power: POWER|outage|grid, transit: TRANSIT|rail|bus,
+      //  emergency: EMERGENCY|STRUCTURE|gas|collapse|fire)
+      if (filters.category && filters.category !== 'all') {
+        const cat = filters.category.toLowerCase()
+        const textToMatch = `${inc.primary_cause || ''} ${inc.cause_label || ''} ${inc.title || ''} ${(inc.events || []).map((e: any) => e.taxonomy_code || '').join(' ')}`.toLowerCase()
+
+        if (cat === 'flood') {
+          if (!/(flood|weather|drainage|water)/i.test(textToMatch)) return false
+        } else if (cat === 'traffic') {
+          if (!/(traffic|accident|blockage)/i.test(textToMatch)) return false
+        } else if (cat === 'power') {
+          if (!/(power|outage|grid)/i.test(textToMatch)) return false
+        } else if (cat === 'transit') {
+          if (!/(transit|rail|bus)/i.test(textToMatch)) return false
+        } else if (cat === 'emergency') {
+          if (!/(emergency|structure|gas|collapse|fire)/i.test(textToMatch)) return false
+        }
+      }
+
+      // 3. Date range: created_at (fallback updated_at) inside range
+      if (filters.dateRange && filters.dateRange.length === 2) {
+        const timeStr = inc.created_at || inc.updated_at || (inc.events?.[0]?.event_time) || (inc.events?.[0]?.time)
+        if (timeStr) {
+          const t = new Date(timeStr).getTime()
+          if (!isNaN(t) && (t < filters.dateRange[0] || t > filters.dateRange[1])) {
+            return false
+          }
+        }
+      }
+
+      // 4. realOnly: keep if any event is non-synthetic; keep if no event info
+      if (filters.realOnly) {
+        const events = inc.events || []
+        if (events.length > 0) {
+          const hasNonSynthetic = events.some((e: any) => !e.is_synthetic)
+          if (!hasNonSynthetic) return false
+        }
+        // keep if no event info
+      }
+
+      return true
+    })
+  }, [incidents, filters])
+
   // Active incidents count (Resolved pins excluded from stat)
   const activeIncidentsCount = useMemo(() => {
-    const list = activeCity === 'all' ? incidents : incidents.filter(i => (i.city || '').toLowerCase() === activeCity.toLowerCase())
+    const list = activeCity === 'all'
+      ? filteredIncidents
+      : filteredIncidents.filter(i => (i.city || '').toLowerCase() === activeCity.toLowerCase())
     return list.filter(i => (operatorStatuses[i.incident_id]?.status || 'New') !== 'Resolved').length
-  }, [incidents, activeCity, operatorStatuses])
+  }, [filteredIncidents, activeCity, operatorStatuses])
 
   // Tour management
   const stopTour = () => {
@@ -436,7 +494,7 @@ export const EarthPage: React.FC = () => {
     <div className="relative w-screen h-screen bg-black overflow-hidden select-none">
       {/* 1. MapLibre Fullscreen 3D Globe with GeoJSON pins */}
       <EarthMap
-        incidents={incidents}
+        incidents={filteredIncidents}
         selectedIncident={selectedIncident}
         onSelectIncident={inc => {
           setSelectedIncident(inc)
@@ -462,7 +520,7 @@ export const EarthPage: React.FC = () => {
       {/* 2. Top-Left Search Bar + Stats */}
       <div id="tour-button">
         <SearchBar
-          incidents={incidents}
+          incidents={filteredIncidents}
           onSelectIncident={inc => {
             setSelectedIncident(inc)
             if (inc.city) selectCity(inc.city.toLowerCase())
@@ -568,7 +626,9 @@ export const EarthPage: React.FC = () => {
 
       {/* 6. Left Thin Icon Rail & Expandable Panels */}
       <LeftRail
-        incidents={incidents}
+        incidents={filteredIncidents}
+        filteredIncidentsCount={filteredIncidents.length}
+        totalIncidentsCount={incidents.length}
         selectedIncident={selectedIncident}
         onSelectIncident={inc => {
           setSelectedIncident(inc)
@@ -611,6 +671,7 @@ export const EarthPage: React.FC = () => {
       {isAllIndia && stats && (
         <AllIndiaStatsCard
           stats={stats}
+          incidents={filteredIncidents}
           onSelectCity={selectCity}
           isCollapsed={Boolean(selectedIncident)}
           onToggleCollapse={() => {
@@ -628,7 +689,7 @@ export const EarthPage: React.FC = () => {
       )}
 
       {/* 10. Bottom-Left Live Telemetry Ticker */}
-      <LiveTicker activeCity={activeCity} />
+      <LiveTicker activeCity={activeCity} incidents={filteredIncidents} />
     </div>
   )
 }

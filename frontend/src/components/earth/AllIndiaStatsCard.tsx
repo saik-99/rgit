@@ -15,6 +15,7 @@ import { Label } from '../../ui/primitives'
 
 interface AllIndiaStatsCardProps {
   stats: any
+  incidents?: any[]
   onSelectCity?: (city: string) => void
   isCollapsed?: boolean
   onToggleCollapse?: () => void
@@ -32,6 +33,7 @@ const CITY_NAMES: Record<string, string> = {
 
 export const AllIndiaStatsCard: React.FC<AllIndiaStatsCardProps> = ({
   stats,
+  incidents,
   onSelectCity,
   isCollapsed: externalCollapsed = false,
   onToggleCollapse,
@@ -43,20 +45,30 @@ export const AllIndiaStatsCard: React.FC<AllIndiaStatsCardProps> = ({
   const isCollapsed = externalCollapsed || internalMinimized
 
   const byCity = stats.by_city || {}
-  const cityBarData = Object.entries(byCity).map(([key, val]: [string, any]) => ({
-    city: key.toLowerCase(),
-    name: CITY_NAMES[key.toLowerCase()] || key.slice(0, 3).toUpperCase(),
-    high_count: val.high_count || Math.round((val.incidents || 20) * 0.25),
-    incidents: val.incidents || val.incident_count || 0,
-    events: val.total_events || 0,
-    real: val.real || 0,
-    synthetic: val.synthetic || 0,
-  }))
+  const cityBarData = Object.entries(byCity).map(([key, val]: [string, any]) => {
+    const cityIncidents = incidents
+      ? incidents.filter(i => (i.city || '').toLowerCase() === key.toLowerCase())
+      : null
+    const highCount = cityIncidents
+      ? cityIncidents.filter(i => (i.severity_level || '').toLowerCase() === 'high').length
+      : (val.high_count || Math.round((val.incidents || 20) * 0.25))
+    const incCount = cityIncidents ? cityIncidents.length : (val.incidents || val.incident_count || 0)
+
+    return {
+      city: key.toLowerCase(),
+      name: CITY_NAMES[key.toLowerCase()] || key.slice(0, 3).toUpperCase(),
+      high_count: highCount,
+      incidents: incCount,
+      events: val.total_events || 0,
+      real: val.real || 0,
+      synthetic: val.synthetic || 0,
+    }
+  })
 
   const realCount = stats.real_vs_synthetic?.real ?? 144
   const synthCount = stats.real_vs_synthetic?.synthetic ?? 3074
   const totalEvents = stats.total_events ?? (realCount + synthCount)
-  const totalIncidents = stats.total_incidents ?? 1327
+  const totalIncidents = incidents ? incidents.length : (stats.total_incidents ?? 1327)
 
   const pieData = [
     { name: 'Real', value: realCount, color: '#22c55e' },
@@ -251,7 +263,7 @@ export const AllIndiaStatsCard: React.FC<AllIndiaStatsCardProps> = ({
               <div className="flex items-center justify-between p-1.5 rounded-lg bg-white/5 border border-[var(--border)]">
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-[var(--ok)] shrink-0" />
-                  <span className="text-[11px] text-[var(--text)]">Real ✓</span>
+                  <span className="text-[11px] text-[var(--text)]">Real</span>
                 </div>
                 <div className="text-right">
                   <span className="text-xs font-semibold text-[var(--text)]">{realCount}</span>

@@ -49,6 +49,7 @@ export const EarthMap: React.FC<EarthMapProps> = ({
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
+  const mapReadyRef = useRef<boolean>(false)
   const earthquakeMarkersRef = useRef<maplibregl.Marker[]>([])
   const floodMarkersRef = useRef<maplibregl.Marker[]>([])
 
@@ -71,8 +72,11 @@ export const EarthMap: React.FC<EarthMapProps> = ({
   useEffect(() => {
     if (!mapContainerRef.current) return
 
+    mapReadyRef.current = false
+
     const style: maplibregl.StyleSpecification = {
       version: 8,
+      glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
       sources: {
         'esri-imagery': {
           type: 'raster',
@@ -115,141 +119,171 @@ export const EarthMap: React.FC<EarthMapProps> = ({
 
     map.on('load', () => {
       // Dashed outline icon for approximate locations
-      const size = 36
-      const canvas = document.createElement('canvas')
-      canvas.width = size
-      canvas.height = size
-      const ctx = canvas.getContext('2d')
-      if (ctx) {
-        ctx.strokeStyle = '#ffffff'
-        ctx.lineWidth = 2
-        ctx.setLineDash([4, 3])
-        ctx.beginPath()
-        ctx.arc(size / 2, size / 2, 11, 0, Math.PI * 2)
-        ctx.stroke()
-        map.addImage('dashed-ring', ctx.getImageData(0, 0, size, size))
+      try {
+        const size = 36
+        const canvas = document.createElement('canvas')
+        canvas.width = size
+        canvas.height = size
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          ctx.strokeStyle = '#ffffff'
+          ctx.lineWidth = 2
+          ctx.setLineDash([4, 3])
+          ctx.beginPath()
+          ctx.arc(size / 2, size / 2, 11, 0, Math.PI * 2)
+          ctx.stroke()
+          map.addImage('dashed-ring', ctx.getImageData(0, 0, size, size))
+        }
+      } catch (err) {
+        console.warn('Failed to add dashed-ring icon:', err)
       }
 
       // --- EVENTS GEOJSON SOURCE & LAYERS ---
-      map.addSource('events-geojson', {
-        type: 'geojson',
-        data: eventsGeoJSON || { type: 'FeatureCollection', features: [] },
-        cluster: true,
-        clusterMaxZoom: 13,
-        clusterRadius: 50,
-      })
+      try {
+        map.addSource('events-geojson', {
+          type: 'geojson',
+          data: eventsGeoJSON || { type: 'FeatureCollection', features: [] },
+          cluster: true,
+          clusterMaxZoom: 13,
+          clusterRadius: 50,
+        })
+      } catch (err) {
+        console.warn('Failed to add events-geojson source:', err)
+      }
 
       // Heatmap layer (zoom 0 to 12)
-      map.addLayer({
-        id: 'events-heat',
-        type: 'heatmap',
-        source: 'events-geojson',
-        maxzoom: 12,
-        paint: {
-          'heatmap-weight': 1,
-          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 1, 12, 3],
-          'heatmap-color': [
-            'interpolate',
-            ['linear'],
-            ['heatmap-density'],
-            0, 'rgba(0, 0, 0, 0)',
-            0.2, 'rgba(6, 182, 212, 0.4)',
-            0.4, 'rgba(59, 130, 246, 0.65)',
-            0.6, 'rgba(234, 179, 8, 0.8)',
-            0.8, 'rgba(249, 115, 22, 0.9)',
-            1.0, 'rgba(239, 68, 68, 1)',
-          ],
-          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 4, 12, 25],
-          'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 7, 0.85, 12, 0],
-        },
-      })
+      try {
+        map.addLayer({
+          id: 'events-heat',
+          type: 'heatmap',
+          source: 'events-geojson',
+          maxzoom: 12,
+          paint: {
+            'heatmap-weight': 1,
+            'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 1, 12, 3],
+            'heatmap-color': [
+              'interpolate',
+              ['linear'],
+              ['heatmap-density'],
+              0, 'rgba(0, 0, 0, 0)',
+              0.2, 'rgba(6, 182, 212, 0.4)',
+              0.4, 'rgba(59, 130, 246, 0.65)',
+              0.6, 'rgba(234, 179, 8, 0.8)',
+              0.8, 'rgba(249, 115, 22, 0.9)',
+              1.0, 'rgba(239, 68, 68, 1)',
+            ],
+            'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 4, 12, 25],
+            'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 7, 0.85, 12, 0],
+          },
+        })
+      } catch (err) {
+        console.warn('Failed to add events-heat layer:', err)
+      }
 
       // Cluster bubbles
-      map.addLayer({
-        id: 'events-clusters',
-        type: 'circle',
-        source: 'events-geojson',
-        filter: ['has', 'point_count'],
-        paint: {
-          'circle-color': [
-            'step',
-            ['get', 'point_count'],
-            '#06b6d4',
-            20, '#3b82f6',
-            50, '#8b5cf6',
-            100, '#f97316',
-          ],
-          'circle-radius': [
-            'step',
-            ['get', 'point_count'],
-            16,
-            20, 20,
-            50, 25,
-            100, 32,
-          ],
-          'circle-opacity': 0.88,
-          'circle-stroke-width': 1.5,
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-opacity': 0.95,
-        },
-      })
+      try {
+        map.addLayer({
+          id: 'events-clusters',
+          type: 'circle',
+          source: 'events-geojson',
+          filter: ['has', 'point_count'],
+          paint: {
+            'circle-color': [
+              'step',
+              ['get', 'point_count'],
+              '#06b6d4',
+              20, '#3b82f6',
+              50, '#8b5cf6',
+              100, '#f97316',
+            ],
+            'circle-radius': [
+              'step',
+              ['get', 'point_count'],
+              16,
+              20, 20,
+              50, 25,
+              100, 32,
+            ],
+            'circle-opacity': 0.88,
+            'circle-stroke-width': 1.5,
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-opacity': 0.95,
+          },
+        })
+      } catch (err) {
+        console.warn('Failed to add events-clusters layer:', err)
+      }
 
-      map.addLayer({
-        id: 'events-cluster-count',
-        type: 'symbol',
-        source: 'events-geojson',
-        filter: ['has', 'point_count'],
-        layout: {
-          'text-field': '{point_count_abbreviated}',
-          'text-size': 11,
-        },
-        paint: {
-          'text-color': '#ffffff',
-        },
-      })
+      try {
+        map.addLayer({
+          id: 'events-cluster-count',
+          type: 'symbol',
+          source: 'events-geojson',
+          filter: ['has', 'point_count'],
+          layout: {
+            'text-field': '{point_count_abbreviated}',
+            'text-font': ['Noto Sans Regular'],
+            'text-size': 11,
+          },
+          paint: {
+            'text-color': '#ffffff',
+          },
+        })
+      } catch (err) {
+        console.warn('Failed to add events-cluster-count layer:', err)
+      }
 
       // Individual event dots (unclustered): colored by category
-      map.addLayer({
-        id: 'events-unclustered-dots',
-        type: 'circle',
-        source: 'events-geojson',
-        filter: ['!', ['has', 'point_count']],
-        paint: {
-          'circle-color': [
-            'case',
-            ['any', ['==', ['get', 'type'], 'water_level'], ['in', 'FLOOD', ['get', 'taxonomy_code']], ['in', 'WATER', ['get', 'taxonomy_code']]],
-            '#3b82f6', // blue flood
-            ['any', ['==', ['get', 'type'], 'road_sensor'], ['in', 'TRAFFIC', ['get', 'taxonomy_code']]],
-            '#f97316', // orange traffic
-            ['in', 'POWER', ['get', 'taxonomy_code']],
-            '#eab308', // yellow power
-            ['any', ['==', ['get', 'type'], 'transit'], ['in', 'TRANSIT', ['get', 'taxonomy_code']]],
-            '#a855f7', // purple transit
-            ['any', ['==', ['get', 'type'], 'emergency_call'], ['in', 'EMERGENCY', ['get', 'taxonomy_code']]],
-            '#ef4444', // red emergency
-            '#22c55e',
-          ],
-          'circle-radius': 6,
-          'circle-stroke-width': 1.5,
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-opacity': 0.9,
-          'circle-opacity': 0.95,
-        },
-      })
+      try {
+        map.addLayer({
+          id: 'events-unclustered-dots',
+          type: 'circle',
+          source: 'events-geojson',
+          filter: ['!', ['has', 'point_count']],
+          paint: {
+            'circle-color': [
+              'case',
+              ['any', ['==', ['get', 'type'], 'water_level'], ['in', 'FLOOD', ['get', 'taxonomy_code']], ['in', 'WATER', ['get', 'taxonomy_code']]],
+              '#3b82f6', // blue flood
+              ['any', ['==', ['get', 'type'], 'road_sensor'], ['in', 'TRAFFIC', ['get', 'taxonomy_code']]],
+              '#f97316', // orange traffic
+              ['in', 'POWER', ['get', 'taxonomy_code']],
+              '#eab308', // yellow power
+              ['any', ['==', ['get', 'type'], 'transit'], ['in', 'TRANSIT', ['get', 'taxonomy_code']]],
+              '#a855f7', // purple transit
+              ['any', ['==', ['get', 'type'], 'emergency_call'], ['in', 'EMERGENCY', ['get', 'taxonomy_code']]],
+              '#ef4444', // red emergency
+              '#22c55e',
+            ],
+            'circle-radius': 6,
+            'circle-stroke-width': 1.5,
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-opacity': 0.9,
+            'circle-opacity': 0.95,
+          },
+        })
+      } catch (err) {
+        console.warn('Failed to add events-unclustered-dots layer:', err)
+      }
 
       // Dashed outline for events with location_approx
-      map.addLayer({
-        id: 'events-unclustered-approx',
-        type: 'symbol',
-        source: 'events-geojson',
-        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'location_approx'], true]],
-        layout: {
-          'icon-image': 'dashed-ring',
-          'icon-allow-overlap': true,
-          'icon-ignore-placement': true,
-          'icon-size': 0.9,
-        },
-      })
+      try {
+        map.addLayer({
+          id: 'events-unclustered-approx',
+          type: 'symbol',
+          source: 'events-geojson',
+          filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'location_approx'], true]],
+          layout: {
+            'icon-image': 'dashed-ring',
+            'text-font': ['Noto Sans Regular'],
+            'icon-allow-overlap': true,
+            'icon-ignore-placement': true,
+            'icon-size': 0.9,
+          },
+        })
+      } catch (err) {
+        console.warn('Failed to add events-unclustered-approx layer:', err)
+      }
 
       // Cluster click -> Zoom
       map.on('click', 'events-clusters', async e => {
@@ -288,7 +322,7 @@ export const EarthMap: React.FC<EarthMapProps> = ({
               <div style="margin-top: 3px; font-weight: 500; color: #e6e8eb;">${p.taxonomy_code}</div>
               <div style="margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap;">
                 <span style="background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px; font-size: 10px;">${p.type}</span>
-                <span style="background: ${p.is_synthetic ? 'rgba(168,85,247,0.2)' : 'rgba(34,197,94,0.2)'}; color: ${p.is_synthetic ? '#c084fc' : '#22c55e'}; padding: 1px 5px; border-radius: 4px; font-size: 10px; font-weight: 500;">${p.is_synthetic ? 'SYNTHETIC' : 'REAL ✓'}</span>
+                <span style="background: ${p.is_synthetic ? 'rgba(168,85,247,0.2)' : 'rgba(34,197,94,0.2)'}; color: ${p.is_synthetic ? '#c084fc' : '#22c55e'}; padding: 1px 5px; border-radius: 4px; font-size: 10px; font-weight: 500;">${p.is_synthetic ? 'SYNTHETIC' : 'REAL'}</span>
                 ${p.location_approx ? '<span style="background: rgba(245,158,11,0.2); color: #f59e0b; padding: 1px 5px; border-radius: 4px; font-size: 10px;">Approx Coord</span>' : ''}
               </div>
               <div style="margin-top: 4px; color: #8b93a1; font-size: 10px;">${p.time || ''}</div>
@@ -298,118 +332,167 @@ export const EarthMap: React.FC<EarthMapProps> = ({
       })
 
       // --- REQUIREMENT 1: SINGLE SOURCE OF TRUTH PINS GEOJSON SOURCE & LAYERS ---
-      const initialPinData = getVisiblePins(
-        activeCityRef.current,
-        map.getZoom(),
-        incidentsRef.current,
-        selectedIncidentRef.current?.incident_id,
-        statsRef.current
-      )
+      try {
+        const initialPinData = getVisiblePins(
+          activeCityRef.current,
+          map.getZoom(),
+          incidentsRef.current,
+          selectedIncidentRef.current?.incident_id,
+          statsRef.current
+        )
 
-      map.addSource('pins-source', {
-        type: 'geojson',
-        data: initialPinData,
-      })
+        map.addSource('pins-source', {
+          type: 'geojson',
+          data: initialPinData,
+        })
+      } catch (err) {
+        console.warn('Failed to add pins-source:', err)
+      }
 
       // 1. City Bubbles circle layer (Zoom < 5)
-      map.addLayer({
-        id: 'pins-city-bubbles',
-        type: 'circle',
-        source: 'pins-source',
-        filter: ['==', ['get', 'kind'], 'city_bubble'],
-        paint: {
-          'circle-color': ['get', 'color'],
-          'circle-radius': ['get', 'radius'],
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 1.5,
-          'circle-opacity': 0.88,
-        },
-      })
+      try {
+        map.addLayer({
+          id: 'pins-city-bubbles',
+          type: 'circle',
+          source: 'pins-source',
+          filter: ['==', ['get', 'kind'], 'city_bubble'],
+          paint: {
+            'circle-color': ['get', 'color'],
+            'circle-radius': ['get', 'radius'],
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 1.5,
+            'circle-opacity': 0.88,
+          },
+        })
+      } catch (err) {
+        console.warn('Failed to add pins-city-bubbles layer:', err)
+      }
 
       // 2. City Bubbles label layer
-      map.addLayer({
-        id: 'pins-city-bubbles-label',
-        type: 'symbol',
-        source: 'pins-source',
-        filter: ['==', ['get', 'kind'], 'city_bubble'],
-        layout: {
-          'text-field': ['get', 'label'],
-          'text-size': 11,
-          'text-allow-overlap': true,
-        },
-        paint: {
-          'text-color': '#ffffff',
-          'text-halo-color': '#0c1018',
-          'text-halo-width': 1.5,
-        },
-      })
+      try {
+        map.addLayer({
+          id: 'pins-city-bubbles-label',
+          type: 'symbol',
+          source: 'pins-source',
+          filter: ['==', ['get', 'kind'], 'city_bubble'],
+          layout: {
+            'text-field': ['get', 'label'],
+            'text-font': ['Noto Sans Regular'],
+            'text-size': 11,
+            'text-allow-overlap': true,
+          },
+          paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': '#0c1018',
+            'text-halo-width': 1.5,
+          },
+        })
+      } catch (err) {
+        console.warn('Failed to add pins-city-bubbles-label layer:', err)
+      }
 
       // 3. Small 5px dots (all other incidents of that city)
-      map.addLayer({
-        id: 'pins-dots',
-        type: 'circle',
-        source: 'pins-source',
-        filter: ['==', ['get', 'kind'], 'dot'],
-        paint: {
-          'circle-color': ['get', 'color'],
-          'circle-radius': 5,
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 1,
-          'circle-opacity': 0.85,
-        },
-      })
+      try {
+        map.addLayer({
+          id: 'pins-dots',
+          type: 'circle',
+          source: 'pins-source',
+          filter: ['==', ['get', 'kind'], 'dot'],
+          paint: {
+            'circle-color': ['get', 'color'],
+            'circle-radius': 5,
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 1,
+            'circle-opacity': 0.85,
+          },
+        })
+      } catch (err) {
+        console.warn('Failed to add pins-dots layer:', err)
+      }
 
-      // 4. Full incident pins (top 4 in All India, top 10 in City)
-      map.addLayer({
-        id: 'pins-full',
-        type: 'circle',
-        source: 'pins-source',
-        filter: ['==', ['get', 'kind'], 'pin'],
-        paint: {
-          'circle-color': ['get', 'color'],
-          'circle-radius': ['get', 'radius'],
-          'circle-stroke-color': '#ffffff',
-          'circle-stroke-width': 1.5,
-          'circle-opacity': 0.95,
-        },
-      })
+      // 4. Glow: add circle layer 'pins-glow' BELOW 'pins-full' (filter kind == 'pin' and severity == 'High'):
+      // radius 16, color ['get','color'], opacity 0.25, circle-blur 0.8.
+      try {
+        map.addLayer({
+          id: 'pins-glow',
+          type: 'circle',
+          source: 'pins-source',
+          filter: ['all', ['==', ['get', 'kind'], 'pin'], ['==', ['get', 'severity'], 'High']],
+          paint: {
+            'circle-radius': 16,
+            'circle-color': ['get', 'color'],
+            'circle-opacity': 0.25,
+            'circle-blur': 0.8,
+          },
+        })
+      } catch (err) {
+        console.warn('Failed to add pins-glow layer:', err)
+      }
 
-      // 5. Selected pin glow ring
-      map.addLayer({
-        id: 'pins-selected-glow',
-        type: 'circle',
-        source: 'pins-source',
-        filter: ['all', ['==', ['get', 'kind'], 'pin'], ['==', ['get', 'is_selected'], true]],
-        paint: {
-          'circle-radius': 13,
-          'circle-color': '#22d3ee',
-          'circle-opacity': 0.35,
-          'circle-stroke-color': '#22d3ee',
-          'circle-stroke-width': 2,
-        },
-      })
+      // 5. Full incident pins (circle-stroke-width 2, white)
+      try {
+        map.addLayer({
+          id: 'pins-full',
+          type: 'circle',
+          source: 'pins-source',
+          filter: ['==', ['get', 'kind'], 'pin'],
+          paint: {
+            'circle-color': ['get', 'color'],
+            'circle-radius': ['get', 'radius'],
+            'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': 2,
+            'circle-opacity': 0.95,
+          },
+        })
+      } catch (err) {
+        console.warn('Failed to add pins-full layer:', err)
+      }
 
-      // 6. Label layer: text-allow-overlap false, symbol-sort-key = -severity_score
-      map.addLayer({
-        id: 'pins-labels',
-        type: 'symbol',
-        source: 'pins-source',
-        filter: ['all', ['!=', ['get', 'kind'], 'city_bubble'], ['!=', ['get', 'label'], '']],
-        layout: {
-          'text-field': ['get', 'label'],
-          'symbol-sort-key': ['-', 0, ['coalesce', ['get', 'severity_score'], 0]],
-          'text-allow-overlap': false,
-          'text-ignore-placement': false,
-          'text-size': 11,
-          'text-offset': [1.3, 0], // 18px offset right
-          'text-anchor': 'left',
-        },
-        paint: {
-          'text-color': '#e6e8eb',
-          'text-halo-color': '#0c1018',
-          'text-halo-width': 1.5,
-        },
-      })
+      // 6. Selected pin glow ring (existing accent ring)
+      try {
+        map.addLayer({
+          id: 'pins-selected-glow',
+          type: 'circle',
+          source: 'pins-source',
+          filter: ['all', ['==', ['get', 'kind'], 'pin'], ['==', ['get', 'is_selected'], true]],
+          paint: {
+            'circle-radius': 13,
+            'circle-color': '#22d3ee',
+            'circle-opacity': 0.35,
+            'circle-stroke-color': '#22d3ee',
+            'circle-stroke-width': 2,
+          },
+        })
+      } catch (err) {
+        console.warn('Failed to add pins-selected-glow layer:', err)
+      }
+
+      // 7. Label layer: text-allow-overlap false, symbol-sort-key = -severity_score
+      try {
+        map.addLayer({
+          id: 'pins-labels',
+          type: 'symbol',
+          source: 'pins-source',
+          filter: ['all', ['!=', ['get', 'kind'], 'city_bubble'], ['!=', ['get', 'label'], '']],
+          layout: {
+            'text-field': ['get', 'label'],
+            'text-font': ['Noto Sans Regular'],
+            'symbol-sort-key': ['-', 0, ['coalesce', ['get', 'severity_score'], 0]],
+            'text-allow-overlap': false,
+            'text-ignore-placement': false,
+            'text-size': 11,
+            'text-offset': [1.3, 0], // 18px offset right
+            'text-anchor': 'left',
+          },
+          paint: {
+            'text-color': '#e6e8eb',
+            'text-halo-color': '#0c1018',
+            'text-halo-width': 1.5,
+          },
+        })
+      } catch (err) {
+        console.warn('Failed to add pins-labels layer:', err)
+      }
 
       // Click on City Bubble -> Fly to city
       map.on('click', 'pins-city-bubbles', e => {
@@ -443,27 +526,52 @@ export const EarthMap: React.FC<EarthMapProps> = ({
       map.on('mouseleave', 'pins-dots', () => { map.getCanvas().style.cursor = '' })
 
       // Rainfall GeoJSON
-      map.addSource('rainfall-source', {
-        type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
-      })
+      try {
+        map.addSource('rainfall-source', {
+          type: 'geojson',
+          data: { type: 'FeatureCollection', features: [] },
+        })
 
-      map.addLayer({
-        id: 'rainfall-layer',
-        type: 'circle',
-        source: 'rainfall-source',
-        layout: { visibility: 'none' },
-        paint: {
-          'circle-radius': ['interpolate', ['linear'], ['get', 'rain_mm'], 0, 10, 50, 25, 100, 45],
-          'circle-color': '#06b6d4',
-          'circle-opacity': 0.45,
-          'circle-stroke-width': 1.5,
-          'circle-stroke-color': '#22d3ee',
-        },
-      })
+        map.addLayer({
+          id: 'rainfall-layer',
+          type: 'circle',
+          source: 'rainfall-source',
+          layout: { visibility: 'none' },
+          paint: {
+            'circle-radius': ['interpolate', ['linear'], ['get', 'rain_mm'], 0, 10, 50, 25, 100, 45],
+            'circle-color': '#06b6d4',
+            'circle-opacity': 0.45,
+            'circle-stroke-width': 1.5,
+            'circle-stroke-color': '#22d3ee',
+          },
+        })
+      } catch (err) {
+        console.warn('Failed to add rainfall source/layer:', err)
+      }
+
+      // Mark map as ready at the END of load handler
+      mapReadyRef.current = true
+
+      // Immediately set data on pins-source from refs
+      try {
+        const pSource = map.getSource('pins-source') as maplibregl.GeoJSONSource | undefined
+        if (pSource) {
+          pSource.setData(
+            getVisiblePins(
+              activeCityRef.current,
+              map.getZoom(),
+              incidentsRef.current,
+              selectedIncidentRef.current?.incident_id,
+              statsRef.current
+            )
+          )
+        }
+      } catch (err) {
+        console.warn('Failed to set initial pins-source data in load handler:', err)
+      }
     })
 
-    // Zoom and moveend listener: update visible pins (e.g. city bubbles disappear at zoom 5, dot labels appear at zoom 15)
+    // Zoom and moveend listener: update visible pins (city bubbles disappear at zoom 5, dot labels appear at zoom 15)
     const handleMapMovement = () => {
       const source = map.getSource('pins-source') as maplibregl.GeoJSONSource | undefined
       if (source) {
@@ -482,9 +590,30 @@ export const EarthMap: React.FC<EarthMapProps> = ({
     map.on('zoom', handleMapMovement)
     map.on('moveend', handleMapMovement)
 
+    // RequestAnimationFrame loop for pulsing High severity pins-glow opacity between 0.15 and 0.35 over 2s
+    let glowRafId: number | null = null
+    const animateGlowPulse = (time: number) => {
+      if (mapRef.current && mapReadyRef.current) {
+        try {
+          if (mapRef.current.getLayer('pins-glow')) {
+            const progress = (time % 2000) / 2000 // 0 to 1
+            const sinVal = (Math.sin(progress * 2 * Math.PI) + 1) / 2 // 0 to 1
+            const opacity = 0.15 + sinVal * (0.35 - 0.15) // 0.15 to 0.35
+            mapRef.current.setPaintProperty('pins-glow', 'circle-opacity', opacity)
+          }
+        } catch {
+          // ignore
+        }
+      }
+      glowRafId = requestAnimationFrame(animateGlowPulse)
+    }
+    glowRafId = requestAnimationFrame(animateGlowPulse)
+
     mapRef.current = map
 
     return () => {
+      if (glowRafId !== null) cancelAnimationFrame(glowRafId)
+      mapReadyRef.current = false
       map.remove()
     }
   }, [])
@@ -511,7 +640,7 @@ export const EarthMap: React.FC<EarthMapProps> = ({
       if (cityConfig) {
         map.flyTo({
           center: [cityConfig.lon, cityConfig.lat],
-          zoom: 11, // Requirement 2: zoom 11, pitch 45
+          zoom: 11,
           pitch: 45,
           duration: 2000,
           essential: true,
@@ -521,10 +650,9 @@ export const EarthMap: React.FC<EarthMapProps> = ({
   }, [activeCity])
 
   // 3. Re-set GeoJSON source data whenever view, incidents, or selection changes
-  // (Ensures All India pins render on first load and when switching back from a city)
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !map.isStyleLoaded()) return
+    if (!map || !mapReadyRef.current) return
 
     const source = map.getSource('pins-source') as maplibregl.GeoJSONSource | undefined
     if (source) {
@@ -542,7 +670,7 @@ export const EarthMap: React.FC<EarthMapProps> = ({
   // 4. Update events GeoJSON
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !map.isStyleLoaded()) return
+    if (!map || !mapReadyRef.current) return
 
     const source = map.getSource('events-geojson') as maplibregl.GeoJSONSource | undefined
     if (source && eventsGeoJSON) {
@@ -583,7 +711,7 @@ export const EarthMap: React.FC<EarthMapProps> = ({
   // 6. Rainfall Layer
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !map.isStyleLoaded()) return
+    if (!map || !mapReadyRef.current) return
 
     const rainSource = map.getSource('rainfall-source') as maplibregl.GeoJSONSource | undefined
     if (rainSource && rainfallData) {

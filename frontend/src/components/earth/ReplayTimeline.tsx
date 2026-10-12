@@ -63,13 +63,18 @@ export const ReplayTimeline: React.FC<ReplayTimelineProps> = ({ incident, onClos
   const currentStep = steps[currentStepIndex] || steps[0]
   const confPct = Math.round((currentStep.confidence || 0) * 100)
 
+  const displayTitle =
+    incident.title && !incident.title.startsWith('SYN-') && !incident.title.startsWith('REAL-EV-')
+      ? incident.title
+      : `${formatCause(incident.primary_cause || (incident as any).cause)} · ${(incident.city || 'Alert').toUpperCase()}`
+
   return (
     <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-30 w-[92vw] max-w-2xl bg-[var(--bg-panel)] backdrop-blur-2xl border border-[var(--border)] rounded-2xl shadow-2xl p-3.5 text-[var(--text)] pointer-events-auto">
       <div className="flex items-center justify-between pb-2 mb-2 border-b border-[var(--border)]">
         <div className="flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-[var(--accent)] stroke-[1.5]" />
           <span className="text-xs font-semibold text-[var(--text)]">
-            Causal replay — {incident.incident_id}
+            Causal replay — {displayTitle}
           </span>
           <Label>
             (Step {currentStepIndex + 1} of {steps.length})
@@ -127,7 +132,10 @@ export const ReplayTimeline: React.FC<ReplayTimelineProps> = ({ incident, onClos
                   {formatSourceType(currentStep.event.source_type)}:
                 </span>
               )}
-              {currentStep.event?.payload?.description || currentStep.event?.payload?.text || 'Signal telemetry received'}
+              {(() => {
+                const desc = currentStep.event?.payload?.description || currentStep.event?.payload?.text || 'Signal telemetry received'
+                return desc.startsWith('SYN-') || desc.startsWith('REAL-EV-') ? 'Telemetry sensor signal' : desc
+              })()}
             </span>
             <span className="font-medium text-[var(--accent)] whitespace-nowrap ml-2">
               {formatCause(currentStep.primary_cause)}
