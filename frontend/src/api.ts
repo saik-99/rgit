@@ -274,12 +274,57 @@ export async function fetchWeather(): Promise<WeatherMetrics> {
     if (!res.ok) {
       const resAlt = await fetch(`${API_BASE}/weather`)
       if (!resAlt.ok) throw new Error('Failed to fetch weather')
-      return await resAlt.json()
+      const altData = await resAlt.json()
+      if (altData.locations && altData.locations.hindmata) {
+        return normalizeWeatherPayload(altData.locations.hindmata, null)
+      }
+      return MOCK_WEATHER
     }
-    return await res.json()
+    const rawData = await res.json()
+    return normalizeWeatherPayload(rawData.weather || rawData, rawData.river_discharge)
   } catch (err) {
     console.warn('Backend unavailable, using mock weather:', err)
     return MOCK_WEATHER
+  }
+}
+
+function normalizeWeatherPayload(w: any, rd: any): WeatherMetrics {
+  const precip24h = Number(w.precipitation_24h_mm ?? w.past_24h_rainfall_mm ?? 112.4)
+  const currentPrecip = Number(w.current_precipitation_mm ?? w.current_precip_mm ?? 42.5)
+  const dischargeList = rd?.river_discharge || []
+  const latestDischarge = dischargeList.length > 0 ? dischargeList[0].discharge_m3s : 14.8
+
+  let floodRisk: 'Low' | 'Moderate' | 'High' | 'Severe' = 'High'
+  if (precip24h >= 150 || currentPrecip >= 50) {
+    floodRisk = 'Severe'
+  } else if (precip24h >= 80 || currentPrecip >= 25) {
+    floodRisk = 'High'
+  } else if (precip24h >= 30) {
+    floodRisk = 'Moderate'
+  } else {
+    floodRisk = 'Low'
+  }
+
+  let intensity = 'Moderate Rain'
+  if (currentPrecip >= 50) intensity = 'Cloudburst / Extreme Rain'
+  else if (currentPrecip >= 25) intensity = 'Heavy Rain'
+  else if (currentPrecip >= 5) intensity = 'Moderate Rain'
+  else if (currentPrecip > 0) intensity = 'Light Showers'
+  else intensity = 'Overcast / Dry'
+
+  return {
+    location: w.name || w.location || 'Mumbai (Hindmata)',
+    lat: w.lat || 19.0112,
+    lon: w.lon || 72.8512,
+    current_precip_mm: currentPrecip,
+    rain_intensity: intensity,
+    past_24h_rainfall_mm: precip24h,
+    river_discharge_m3s: latestDischarge,
+    flood_risk_level: floodRisk,
+    advisory: precip24h > 100
+      ? 'Monsoon surge: intense localized showers accumulating in low-lying subways and culverts. Pumping stations operational.'
+      : 'Monsoon conditions normal.',
+    timestamp: w.fetched_at || new Date().toISOString(),
   }
 }
 

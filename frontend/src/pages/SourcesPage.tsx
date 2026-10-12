@@ -60,7 +60,7 @@ export const SourcesPage: React.FC = () => {
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3" />
             <input
               type="text"
-              placeholder="Search by device ID, station name..."
+              placeholder="Search device ID or station..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full text-xs pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-hidden focus:border-[#0079C1]"
@@ -145,13 +145,13 @@ export const SourcesPage: React.FC = () => {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      {s.is_flagged ? (
-                        <span className="inline-flex items-center space-x-1 text-red-600 font-bold bg-red-50 px-2 py-0.5 rounded text-[11px]">
+                      {s.trust_score < 0.4 || s.is_flagged ? (
+                        <span className="inline-flex items-center space-x-1 text-red-600 dark:text-red-400 font-bold bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800/60 px-2 py-0.5 rounded text-[11px]">
                           <XCircle className="w-3 h-3" />
-                          <span>Flagged</span>
+                          <span>Quarantined</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center space-x-1 text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded text-[11px]">
+                        <span className="inline-flex items-center space-x-1 text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800/60 px-2 py-0.5 rounded text-[11px]">
                           <CheckCircle2 className="w-3 h-3" />
                           <span>Healthy</span>
                         </span>

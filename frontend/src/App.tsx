@@ -15,6 +15,7 @@ function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/sources" element={<SourcesPage />} />
+            <Route path="/sensors" element={<SourcesPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

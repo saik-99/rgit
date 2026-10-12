@@ -47,6 +47,43 @@ const BASEMAPS = {
   },
 }
 
+// Clean plain-text renderer for card previews (strips raw markdown)
+const cleanMarkdownPreview = (text: string) => {
+  if (!text) return ''
+  return text.replace(/\*\*/g, '').replace(/\n+/g, ' ').trim()
+}
+
+// Structured Markdown renderer for diagnostic briefings
+const renderMarkdownBriefing = (text: string) => {
+  if (!text) return null
+  const paragraphs = text.split('\n\n')
+  return paragraphs.map((para, pIdx) => {
+    const lines = para.split('\n')
+    return (
+      <p key={pIdx} className="mb-2.5 last:mb-0 leading-relaxed text-slate-700 dark:text-slate-300">
+        {lines.map((line, lIdx) => {
+          const parts = line.split(/(\*\*[^*]+\*\*)/g)
+          return (
+            <React.Fragment key={lIdx}>
+              {lIdx > 0 && <br />}
+              {parts.map((part, partIdx) => {
+                if (part.startsWith('**') && part.endsWith('**')) {
+                  return (
+                    <strong key={partIdx} className="font-extrabold text-slate-900 dark:text-white">
+                      {part.slice(2, -2)}
+                    </strong>
+                  )
+                }
+                return part
+              })}
+            </React.Fragment>
+          )
+        })}
+      </p>
+    )
+  })
+}
+
 export const DashboardPage: React.FC = () => {
   // Core Incidents & Weather State
   const [incidents, setIncidents] = useState<Incident[]>([])
@@ -54,6 +91,14 @@ export const DashboardPage: React.FC = () => {
   const [weather, setWeather] = useState<WeatherMetrics | null>(null)
   const [scenarioLoading, setScenarioLoading] = useState(false)
   const [lastScenarioMsg, setLastScenarioMsg] = useState<string>('')
+  const [layerManagerCollapsed, setLayerManagerCollapsed] = useState(false)
+
+  // Auto-collapse Layer Manager when Diagnostic Panel opens to prevent overlap
+  useEffect(() => {
+    if (selectedIncident) {
+      setLayerManagerCollapsed(true)
+    }
+  }, [selectedIncident])
 
   // Search & Cause Filter
   const [searchQuery, setSearchQuery] = useState('')
@@ -272,7 +317,7 @@ export const DashboardPage: React.FC = () => {
         <div class="p-3 font-sans max-w-xs">
           <div class="text-xs font-extrabold uppercase tracking-wide text-red-600 mb-0.5">Incident #${inc.id} • ${inc.severity_level.toUpperCase()}</div>
           <div class="text-sm font-bold text-slate-900 mb-1">${inc.title}</div>
-          <div class="text-xs text-slate-600 mb-2">${inc.explanation}</div>
+          <div class="text-xs text-slate-600 mb-2">${cleanMarkdownPreview(inc.explanation)}</div>
           <div class="flex items-center justify-between text-xs bg-slate-100 p-2 rounded">
             <span>Root Cause: <strong>${inc.cause.replace('_', ' ')}</strong></span>
             <span class="text-sky-700 font-bold">${Math.round(inc.cause_confidence * 100)}% Conf.</span>
@@ -613,7 +658,16 @@ export const DashboardPage: React.FC = () => {
           <span className="text-slate-200 text-xs">
             <span className="line-through text-slate-400 mr-1.5">4 Fragmented City Sirens</span>
             ➔ <strong className="text-emerald-400 font-bold">1 Correlated Incident Graph</strong>
-            <span className="text-slate-300 hidden sm:inline ml-1.5">(Root Cause: Drainage Failure at 88% confidence)</span>
+            {(() => {
+              const bannerIncident = selectedIncident || incidents[0]
+              const bannerCause = bannerIncident ? (bannerIncident.cause || 'drainage_failure').replace(/_/g, ' ') : 'drainage failure'
+              const bannerConfidence = bannerIncident ? Math.round(bannerIncident.cause_confidence * 100) : 88
+              return (
+                <span className="text-slate-300 hidden sm:inline ml-1.5">
+                  (Root Cause: <span className="capitalize">{bannerCause}</span> at {bannerConfidence}% confidence)
+                </span>
+              )
+            })()}
           </span>
         </div>
 
@@ -718,7 +772,7 @@ export const DashboardPage: React.FC = () => {
                     </div>
 
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 mb-2 leading-relaxed">
-                      {inc.explanation}
+                      {cleanMarkdownPreview(inc.explanation)}
                     </p>
 
                     <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-slate-100 dark:border-slate-700/60 text-slate-600 dark:text-slate-300">
@@ -751,7 +805,7 @@ export const DashboardPage: React.FC = () => {
                 onClick={() => {
                   setActiveBasemap(key)
                   if (key === 'windyMap') {
-                    setWindyExpanded(true)
+                    setLayerWindy(true)
                   } else if (key === 'googleFlood') {
                     setLayerGoogleFlood(true)
                     setLayerFloodPolygon(true)
@@ -771,11 +825,23 @@ export const DashboardPage: React.FC = () => {
           </div>
 
           {/* Grouped Layer Manager */}
-          <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl p-3 shadow-xl border border-slate-200 dark:border-slate-800 text-xs w-64 max-h-[75vh] overflow-y-auto space-y-3">
-            <div className="font-extrabold uppercase tracking-wider text-[11px] text-slate-700 dark:text-slate-200 flex items-center justify-between border-b pb-1.5">
-              <span>Layer Manager</span>
-              <Eye className="w-3.5 h-3.5 text-slate-400" />
-            </div>
+          <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl shadow-xl border border-slate-200 dark:border-slate-800 text-xs w-64 overflow-hidden transition-all">
+            <button
+              type="button"
+              onClick={() => setLayerManagerCollapsed(!layerManagerCollapsed)}
+              className="w-full font-extrabold uppercase tracking-wider text-[11px] text-slate-700 dark:text-slate-200 flex items-center justify-between p-2.5 cursor-pointer select-none border-b border-slate-100 dark:border-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-800/40"
+            >
+              <div className="flex items-center space-x-1.5">
+                <Eye className="w-3.5 h-3.5 text-slate-400" />
+                <span>Layer Manager</span>
+              </div>
+              <span className="text-[10px] text-slate-400 font-semibold lowercase">
+                {layerManagerCollapsed ? 'Expand ▾' : 'Collapse ▴'}
+              </span>
+            </button>
+
+            {!layerManagerCollapsed && (
+              <div className="p-3 space-y-3 max-h-[60vh] overflow-y-auto">
 
             {/* Group 1: Incidents & Inundation */}
             <div>
@@ -1019,11 +1085,11 @@ export const DashboardPage: React.FC = () => {
                   Wind, rain, clouds, waves • Windy.com
                 </div>
               </div>
-
             </div>
           </div>
-
-        </div>
+        )}
+      </div>
+    </div>
 
         {/* ── Windy Overlay Panel (Only active when layerWindy is toggled) ── */}
         {layerWindy && windyConfig && (
@@ -1063,9 +1129,9 @@ export const DashboardPage: React.FC = () => {
                     <Info className="w-3.5 h-3.5" />
                     <span>Operator Incident Briefing</span>
                   </div>
-                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
-                    {selectedIncident.explanation}
-                  </p>
+                  <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+                    {renderMarkdownBriefing(selectedIncident.explanation)}
+                  </div>
                 </div>
 
                 {/* 2. Probable Cause Ranking */}

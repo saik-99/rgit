@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { Activity, ShieldAlert, CloudRain, Sun, Moon, Database, ExternalLink, RefreshCw } from 'lucide-react'
-import { fetchWeather } from '../api'
+import { fetchWeather, MOCK_WEATHER } from '../api'
 import type { WeatherMetrics } from '../types'
 
 interface HeaderProps {
@@ -11,7 +11,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ onRefresh }) => {
   const location = useLocation()
   const [darkMode, setDarkMode] = useState(false)
-  const [weather, setWeather] = useState<WeatherMetrics | null>(null)
+  const [weather, setWeather] = useState<WeatherMetrics>(MOCK_WEATHER)
   const [isLive, setIsLive] = useState(true)
 
   useEffect(() => {
@@ -111,11 +111,11 @@ export const Header: React.FC<HeaderProps> = ({ onRefresh }) => {
             <div className="hidden lg:flex items-center space-x-2 bg-slate-800/80 border border-slate-600/70 rounded-full px-3 py-1 text-xs">
               <CloudRain className="w-4 h-4 text-sky-400 animate-pulse" />
               <span className="font-medium text-slate-200">
-                Mumbai: <strong className="text-white">{weather.past_24h_rainfall_mm}mm / 24h</strong>
+                Mumbai: <strong className="text-white">{(weather.past_24h_rainfall_mm ?? 112).toFixed(0)}mm / 24h</strong>
               </span>
               <span className="text-slate-500">•</span>
               <span className="text-amber-300 font-semibold flex items-center space-x-1">
-                <span>Flood Risk: {weather.flood_risk_level}</span>
+                <span>Flood Risk: {weather.flood_risk_level || 'High'}</span>
               </span>
             </div>
           )}
