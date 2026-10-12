@@ -30,3 +30,16 @@ dist-ssr
 # Temporary files
 tmp/
 temp/
+
+# Python & Databases
+__pycache__/
+*.py[cod]
+*$py.class
+*.db
+*.sqlite
+*.sqlite3
+.pytest_cache/
+.coverage
+.env
+venv/
+.venv/
