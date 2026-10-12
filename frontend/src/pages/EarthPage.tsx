@@ -6,6 +6,7 @@ import { ReplayTimeline } from '../components/earth/ReplayTimeline'
 import { LiveTicker } from '../components/earth/LiveTicker'
 import { SearchBar } from '../components/earth/SearchBar'
 import { AllIndiaStatsCard } from '../components/earth/AllIndiaStatsCard'
+import { IntroOverlay } from '../components/earth/IntroOverlay'
 import {
   fetchV1Incidents,
   fetchV1Infrastructure,
@@ -39,6 +40,37 @@ export const EarthPage: React.FC = () => {
   const [activeCity, setActiveCity] = useState<string>('all')
   const [incidents, setIncidents] = useState<V1Incident[]>([])
   const [selectedIncident, setSelectedIncident] = useState<V1Incident | null>(null)
+
+  // Intro Overlay state: shown on every page load unless ?intro=0
+  const [isIntroActive, setIsIntroActive] = useState<boolean>(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search)
+      return urlParams.get('intro') !== '0'
+    } catch {
+      return true
+    }
+  })
+  const [isIntroExiting, setIsIntroExiting] = useState<boolean>(false)
+  const [isMapIdle, setIsMapIdle] = useState<boolean>(false)
+  const [uiRevealed, setUiRevealed] = useState<boolean>(() => {
+    try {
+      const urlParams = new URLSearchParams(window.location.search)
+      return urlParams.get('intro') === '0'
+    } catch {
+      return false
+    }
+  })
+
+  const handleStartEnter = () => {
+    setIsIntroExiting(true)
+  }
+
+  const handleFlyToIndiaComplete = () => {
+    setIsIntroActive(false)
+    setIsIntroExiting(false)
+    setUiRevealed(true)
+    setActiveCity('all')
+  }
 
   // GeoJSON & Stats
   const [eventsGeoJSON, setEventsGeoJSON] = useState<any>(null)
@@ -515,10 +547,21 @@ export const EarthPage: React.FC = () => {
         allIndiaStats={stats}
         onSelectCity={selectCity}
         tourIncident={tourIncident}
+        isIntro={isIntroActive}
+        onMapIdle={() => setIsMapIdle(true)}
+        isIntroExiting={isIntroExiting}
+        onFlyToIndiaComplete={handleFlyToIndiaComplete}
       />
 
-      {/* 2. Top-Left Search Bar + Stats */}
-      <div id="tour-button">
+      {/* 2. Top-Left Search Bar + Stats (Reveal delay 120ms from top) */}
+      <div
+        id="tour-button"
+        className={`transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          !uiRevealed
+            ? 'opacity-0 -translate-y-3 pointer-events-none'
+            : 'opacity-100 translate-y-0 pointer-events-auto delay-[120ms]'
+        }`}
+      >
         <SearchBar
           incidents={filteredIncidents}
           onSelectIncident={inc => {
@@ -533,9 +576,13 @@ export const EarthPage: React.FC = () => {
         />
       </div>
 
-      {/* 3. Requirement 5: Top City Bar — Never overflow, horizontally scrollable city list with status chips inside */}
+      {/* 3. Top City Bar (Reveal delay 240ms from top) */}
       <div
-        className={`absolute top-4 left-1/2 transform -translate-x-1/2 z-20 px-3 py-1.5 bg-[var(--bg-panel)] backdrop-blur-xl border border-[var(--border)] rounded-full shadow-2xl pointer-events-auto text-xs text-[var(--text)] flex items-center gap-2.5 overflow-hidden transition-all duration-200 ${
+        className={`absolute top-4 left-1/2 transform -translate-x-1/2 z-20 px-3 py-1.5 bg-[var(--bg-panel)] backdrop-blur-xl border border-[var(--border)] rounded-full shadow-2xl text-xs text-[var(--text)] flex items-center gap-2.5 overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          !uiRevealed
+            ? 'opacity-0 -translate-y-3 pointer-events-none'
+            : 'opacity-100 translate-y-0 pointer-events-auto delay-[240ms]'
+        } ${
           selectedIncident
             ? 'max-w-[560px] 2xl:max-w-[850px]'
             : 'max-w-[620px] 2xl:max-w-none'
@@ -581,7 +628,7 @@ export const EarthPage: React.FC = () => {
       </div>
 
       {/* 4. NEW-INCIDENT POP Toast */}
-      {newHighToast && (
+      {uiRevealed && newHighToast && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 bg-[var(--bg-panel)] backdrop-blur-xl border border-rose-500/40 px-4 py-2 rounded-xl text-xs flex items-center gap-3 shadow-2xl">
           <span className="w-2 h-2 rounded-full bg-[var(--sev-high)] animate-ping" />
           <span className="text-[var(--text)]">
@@ -608,7 +655,7 @@ export const EarthPage: React.FC = () => {
       )}
 
       {/* 5. TOUR Bottom-Center Caption */}
-      {isTouring && tourCaption && (
+      {uiRevealed && isTouring && tourCaption && (
         <div
           id="tour-caption-box"
           className="fixed bottom-12 left-1/2 -translate-x-1/2 z-40 bg-[var(--bg-panel)] backdrop-blur-xl border border-[var(--border)] px-4 py-2 rounded-xl text-xs flex items-center gap-3 shadow-2xl"
@@ -624,51 +671,61 @@ export const EarthPage: React.FC = () => {
         </div>
       )}
 
-      {/* 6. Left Thin Icon Rail & Expandable Panels */}
-      <LeftRail
-        incidents={filteredIncidents}
-        filteredIncidentsCount={filteredIncidents.length}
-        totalIncidentsCount={incidents.length}
-        selectedIncident={selectedIncident}
-        onSelectIncident={inc => {
-          setSelectedIncident(inc)
-          if (inc.city) selectCity(inc.city.toLowerCase())
-        }}
-        activeCity={activeCity}
-        onSelectCity={selectCity}
-        showInfrastructure={showInfrastructure}
-        onToggleInfrastructure={() => setShowInfrastructure(prev => !prev)}
-        showRainfall={showRainfall}
-        onToggleRainfall={() => setShowRainfall(prev => !prev)}
-        showEarthquakes={showEarthquakes}
-        onToggleEarthquakes={() => setShowEarthquakes(prev => !prev)}
-        showFloodGauges={showFloodGauges}
-        onToggleFloodGauges={() => setShowFloodGauges(prev => !prev)}
-        earthquakes={earthquakes}
-        floodData={floodData}
-        onRefreshIncidents={loadData}
-        filters={filters}
-        onUpdateFilters={setFilters}
-        dateBounds={dateBounds}
-      />
+      {/* 6. Left Thin Icon Rail & Expandable Panels (Reveal delay 0ms from left) */}
+      <div
+        className={`transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          !uiRevealed
+            ? 'opacity-0 -translate-x-3 pointer-events-none'
+            : 'opacity-100 translate-x-0 pointer-events-auto delay-0'
+        }`}
+      >
+        <LeftRail
+          incidents={filteredIncidents}
+          filteredIncidentsCount={filteredIncidents.length}
+          totalIncidentsCount={incidents.length}
+          selectedIncident={selectedIncident}
+          onSelectIncident={inc => {
+            setSelectedIncident(inc)
+            if (inc.city) selectCity(inc.city.toLowerCase())
+          }}
+          activeCity={activeCity}
+          onSelectCity={selectCity}
+          showInfrastructure={showInfrastructure}
+          onToggleInfrastructure={() => setShowInfrastructure(prev => !prev)}
+          showRainfall={showRainfall}
+          onToggleRainfall={() => setShowRainfall(prev => !prev)}
+          showEarthquakes={showEarthquakes}
+          onToggleEarthquakes={() => setShowEarthquakes(prev => !prev)}
+          showFloodGauges={showFloodGauges}
+          onToggleFloodGauges={() => setShowFloodGauges(prev => !prev)}
+          earthquakes={earthquakes}
+          floodData={floodData}
+          onRefreshIncidents={loadData}
+          filters={filters}
+          onUpdateFilters={setFilters}
+          dateBounds={dateBounds}
+        />
+      </div>
 
       {/* 7. Right Incident Diagnostic Card */}
-      <IncidentCard
-        incident={selectedIncident}
-        onClose={() => {
-          setSelectedIncident(null)
-          setHighlightedEventId(null)
-        }}
-        onOpenReplay={() => setIsReplayOpen(true)}
-        highlightedEventId={highlightedEventId}
-        onSelectEvent={id => setHighlightedEventId(id)}
-        operatorStatus={selectedIncident ? operatorStatuses[selectedIncident.incident_id]?.status || 'New' : 'New'}
-        operatorTimestamp={selectedIncident ? operatorStatuses[selectedIncident.incident_id]?.timestamp : undefined}
-        onAdvanceOperatorStatus={handleAdvanceOperatorStatus}
-      />
+      {uiRevealed && (
+        <IncidentCard
+          incident={selectedIncident}
+          onClose={() => {
+            setSelectedIncident(null)
+            setHighlightedEventId(null)
+          }}
+          onOpenReplay={() => setIsReplayOpen(true)}
+          highlightedEventId={highlightedEventId}
+          onSelectEvent={id => setHighlightedEventId(id)}
+          operatorStatus={selectedIncident ? operatorStatuses[selectedIncident.incident_id]?.status || 'New' : 'New'}
+          operatorTimestamp={selectedIncident ? operatorStatuses[selectedIncident.incident_id]?.timestamp : undefined}
+          onAdvanceOperatorStatus={handleAdvanceOperatorStatus}
+        />
+      )}
 
-      {/* 8. Requirement 5: All India Card collapses to small pill above ticker when incident card is open */}
-      {isAllIndia && stats && (
+      {/* 8. All India Card collapses to small pill above ticker when incident card is open */}
+      {uiRevealed && isAllIndia && stats && (
         <AllIndiaStatsCard
           stats={stats}
           incidents={filteredIncidents}
@@ -681,15 +738,34 @@ export const EarthPage: React.FC = () => {
       )}
 
       {/* 9. Bottom Timeline Replay */}
-      {isReplayOpen && selectedIncident && (
+      {uiRevealed && isReplayOpen && selectedIncident && (
         <ReplayTimeline
           incident={selectedIncident}
           onClose={() => setIsReplayOpen(false)}
         />
       )}
 
-      {/* 10. Bottom-Left Live Telemetry Ticker */}
-      <LiveTicker activeCity={activeCity} incidents={filteredIncidents} />
+      {/* 10. Bottom-Left Live Telemetry Ticker (Reveal delay 360ms from bottom) */}
+      <div
+        className={`transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          !uiRevealed
+            ? 'opacity-0 translate-y-3 pointer-events-none'
+            : 'opacity-100 translate-y-0 pointer-events-auto delay-[360ms]'
+        }`}
+      >
+        <LiveTicker activeCity={activeCity} incidents={filteredIncidents} />
+      </div>
+
+      {/* 11. Cinematic Intro Overlay */}
+      {isIntroActive && (
+        <IntroOverlay
+          mapReady={isMapIdle}
+          stats={stats}
+          incidentsCount={incidents.length}
+          onStartEnter={handleStartEnter}
+          isExiting={isIntroExiting}
+        />
+      )}
     </div>
   )
 }

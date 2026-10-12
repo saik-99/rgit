@@ -23,7 +23,9 @@ import {
   CloudRain,
   Send,
   Zap,
+  Download,
 } from 'lucide-react'
+import { downloadIncidentReport } from '../../utils/incidentReport'
 import {
   ResponsiveContainer,
   BarChart,
@@ -201,8 +203,22 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
   }, [incident?.city])
 
   const [isAlertOpen, setIsAlertOpen] = useState<boolean>(false)
+  const [isPreparingReport, setIsPreparingReport] = useState<boolean>(false)
   const [recipientsList, setRecipientsList] = useState<string[]>([])
   const [selectedRecipients, setSelectedRecipients] = useState<string[]>([])
+
+  const handleDownloadReport = () => {
+    if (isPreparingReport || !incident) return
+    setIsPreparingReport(true)
+    setTimeout(() => {
+      const incWithEvents = {
+        ...incident,
+        events: incident.events && incident.events.length > 0 ? incident.events : loadedEvents,
+      }
+      downloadIncidentReport(incWithEvents, operatorStatus)
+      setIsPreparingReport(false)
+    }, 300)
+  }
   const [newRecipientInput, setNewRecipientInput] = useState<string>('')
   const [isSendingAlert, setIsSendingAlert] = useState<boolean>(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
@@ -395,6 +411,18 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            {isPreparingReport && (
+              <span className="text-[11px] text-[var(--accent)] animate-pulse shrink-0">
+                Preparing report…
+              </span>
+            )}
+            <IconButton
+              onClick={handleDownloadReport}
+              title={isPreparingReport ? 'Preparing report…' : 'Download report'}
+              disabled={isPreparingReport}
+            >
+              <Download className="w-4 h-4 stroke-[1.5]" />
+            </IconButton>
             <IconButton onClick={() => setIsAlertOpen(prev => !prev)} title="Alert responders">
               <Bell className="w-4 h-4 stroke-[1.5]" />
             </IconButton>
