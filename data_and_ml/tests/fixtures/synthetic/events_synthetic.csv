@@ -1,0 +1,11 @@
+event_id,type,description,event_time,received_time,location,latitude,longitude,city,country,source_reference,is_synthetic,data_type,trust,signature_verified
+SYN-EVT-101,water_level,Synthetic IoT water depth surge at node #402,2026-10-12T10:00:00Z,2026-10-12T10:01:00Z,Synthetic Test Grid A,19.0150,72.8550,Mumbai,India,IoT_Water_Sensor_402,True,sensor_telemetry,0.90,True
+SYN-EVT-102,citizen_report,Synthetic citizen waterlogging complaint,2026-10-12T10:04:00Z,2026-10-12T10:05:00Z,Synthetic Test Grid A,19.0155,72.8552,Mumbai,India,CitizenApp_Synthetic_22,True,citizen_report,0.65,True
+SYN-EVT-103,road_sensor,Synthetic inductive loop speed drop to 4 km/h,2026-10-12T10:08:00Z,2026-10-12T10:09:00Z,Synthetic Test Grid A,19.0148,72.8548,Mumbai,India,Road_Pavement_Sensor_88,True,sensor_telemetry,0.85,True
+SYN-EVT-104,water_level,Out-of-order delayed water depth reading,2026-10-12T09:45:00Z,2026-10-12T10:15:00Z,Synthetic Test Grid B,19.0200,72.8600,Mumbai,India,Delayed_IoT_Sensor_12,True,sensor_telemetry,0.90,True
+SYN-EVT-105,citizen_report,Citizen report with missing GPS coordinates,2026-10-12T10:12:00Z,2026-10-12T10:14:00Z,Dadar Flower Market,,,Mumbai,India,Citizen_SMS_Hotline,True,citizen_report,0.55,False
+SYN-EVT-106,citizen_report,Citizen claims intersection completely dry (contradiction),2026-10-12T10:06:00Z,2026-10-12T10:07:00Z,Synthetic Test Grid A,19.0152,72.8551,Mumbai,India,Uncalibrated_IoT_Node_99,True,citizen_report,0.35,False
+SYN-EVT-107,citizen_report,"Potential gas odor reported near school (high severity, unverified)",2026-10-12T10:10:00Z,2026-10-12T10:11:00Z,St. Paul High School,19.0160,72.8530,Mumbai,India,Single_Citizen_Call_911,True,citizen_report,0.50,False
+SYN-EVT-108,emergency_call,Major multi-vehicle highway crash (Scenario 6),2026-10-12T10:20:00Z,2026-10-12T10:21:00Z,Eastern Express Highway,19.0400,72.8800,Mumbai,India,911_CAD_Dispatch,True,emergency_call,0.85,True
+SYN-EVT-109,road_sensor,Highway lane blocked / complete standstill,2026-10-12T10:22:00Z,2026-10-12T10:23:00Z,Eastern Express Highway,19.0405,72.8802,Mumbai,India,Highway_Vision_CCTV,True,sensor_telemetry,0.90,True
+SYN-EVT-110,citizen_report,Power substation transformer sparking (Scenario 7),2026-10-12T10:30:00Z,2026-10-12T10:31:00Z,Kurla West Substation,19.0650,72.8790,Mumbai,India,Citizen_Power_Report,True,citizen_report,0.70,True

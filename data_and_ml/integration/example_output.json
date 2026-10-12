@@ -1,0 +1,156 @@
+[
+  {
+    "incident_id": "INCIDENT-001",
+    "title": "Drainage / Waterlogging Failure \u2014 Hindmata Sidewalk",
+    "primary_cause": "drainage_failure",
+    "cause_label": "Drainage / Waterlogging Failure",
+    "cause_confidence": 0.747,
+    "cause_ranking": [
+      {
+        "cause": "drainage_failure",
+        "label": "Drainage / Waterlogging Failure",
+        "category": "Hydrological / Infrastructure",
+        "probability": 0.967,
+        "evidence_signals": 5
+      },
+      {
+        "cause": "road_blockage",
+        "label": "Road Blockage / Obstruction",
+        "category": "Transportation Infrastructure",
+        "probability": 0.812,
+        "evidence_signals": 5
+      },
+      {
+        "cause": "road_accident",
+        "label": "Road Accident / Collision",
+        "category": "Transportation Safety",
+        "probability": 0.799,
+        "evidence_signals": 5
+      },
+      {
+        "cause": "power_outage",
+        "label": "Power Grid Failure / Blackout",
+        "category": "Utility / Electrical",
+        "probability": 0.686,
+        "evidence_signals": 5
+      },
+      {
+        "cause": "gas_leak_hazard",
+        "label": "Gas Leak or Chemical Hazard",
+        "category": "Environmental / Hazard",
+        "probability": 0.633,
+        "evidence_signals": 5
+      }
+    ],
+    "severity_score": 67,
+    "severity_level": "high",
+    "response_priority": "P2_HIGH",
+    "data_completeness": 0.8,
+    "verification_required": false,
+    "centroid_lat": 19.011699999999998,
+    "centroid_lon": 72.85116000000001,
+    "radius_m": 102.9,
+    "neighborhood": "Hindmata Sidewalk",
+    "city": null,
+    "country": null,
+    "event_ids": [
+      "EVT-INP-004",
+      "EVT-INP-001",
+      "EVT-INP-002",
+      "EVT-INP-003",
+      "EVT-INP-005"
+    ],
+    "relationships": [
+      {
+        "relationship_id": "REL-INCIDENT-001-001",
+        "source_id": "EVT-INP-004",
+        "target_id": "INCIDENT-001",
+        "relationship_type": "corroborates",
+        "time_difference_sec": null,
+        "geographic_distance_m": null,
+        "evidence_summary": "Citizen_Report signal from CITIZEN-311-9921 supports Drainage / Waterlogging Failure.",
+        "confidence": 0.6,
+        "alternative_explanations": "Coincidental temporal alignment"
+      },
+      {
+        "relationship_id": "REL-INCIDENT-001-002",
+        "source_id": "EVT-INP-001",
+        "target_id": "INCIDENT-001",
+        "relationship_type": "possible_contributor",
+        "time_difference_sec": null,
+        "geographic_distance_m": null,
+        "evidence_summary": "Water_Level signal from IOT-DRAIN-402 supports Drainage / Waterlogging Failure.",
+        "confidence": 0.95,
+        "alternative_explanations": "Coincidental temporal alignment"
+      },
+      {
+        "relationship_id": "REL-INCIDENT-001-004",
+        "source_id": "EVT-INP-001",
+        "target_id": "EVT-INP-002",
+        "relationship_type": "possible_contributor",
+        "time_difference_sec": 240.0,
+        "geographic_distance_m": 78.9,
+        "evidence_summary": "Water level rise at EVT-INP-001 preceded symptom EVT-INP-002 by 240s.",
+        "confidence": 0.9,
+        "alternative_explanations": "Independent road obstacle or localized surface runoff"
+      },
+      {
+        "relationship_id": "REL-INCIDENT-001-003",
+        "source_id": "EVT-INP-002",
+        "target_id": "INCIDENT-001",
+        "relationship_type": "possible_contributor",
+        "time_difference_sec": null,
+        "geographic_distance_m": null,
+        "evidence_summary": "Road_Sensor signal from ROAD-SEG-88 supports Drainage / Waterlogging Failure.",
+        "confidence": 0.9,
+        "alternative_explanations": "Coincidental temporal alignment"
+      },
+      {
+        "relationship_id": "REL-INCIDENT-001-006",
+        "source_id": "EVT-INP-001",
+        "target_id": "EVT-INP-003",
+        "relationship_type": "possible_contributor",
+        "time_difference_sec": 480.0,
+        "geographic_distance_m": 148.0,
+        "evidence_summary": "Water level rise at EVT-INP-001 preceded symptom EVT-INP-003 by 480s.",
+        "confidence": 0.88,
+        "alternative_explanations": "Independent road obstacle or localized surface runoff"
+      },
+      {
+        "relationship_id": "REL-INCIDENT-001-005",
+        "source_id": "EVT-INP-003",
+        "target_id": "INCIDENT-001",
+        "relationship_type": "possible_contributor",
+        "time_difference_sec": null,
+        "geographic_distance_m": null,
+        "evidence_summary": "Transit signal from TRANSIT-BUS-104 supports Drainage / Waterlogging Failure.",
+        "confidence": 0.88,
+        "alternative_explanations": "Coincidental temporal alignment"
+      },
+      {
+        "relationship_id": "REL-INCIDENT-001-007",
+        "source_id": "EVT-INP-005",
+        "target_id": "INCIDENT-001",
+        "relationship_type": "contradicts",
+        "time_difference_sec": null,
+        "geographic_distance_m": null,
+        "evidence_summary": "Report EVT-INP-005 claims normal conditions, contradicting physical indicators.",
+        "confidence": 0.8,
+        "alternative_explanations": "Report was localized, stale, or submitted from an unaffected vantage point."
+      }
+    ],
+    "explanation": "### \ud83d\udea8 Operational Intelligence Briefing \u2014 Drainage / Waterlogging Failure\n**Severity**: HIGH | **Priority**: P2_HIGH | **Confidence**: Moderate Confidence (75%)\n\nThe fusion engine correlated **5 signals** from 4 independent modalities (citizen_report, road_sensor, transit, water_level) near **Hindmata Sidewalk**.\n\n**Primary Hypothesis**: Drainage / Waterlogging Failure (P = 75%).\n\n\u2705 **Supporting Evidence (4 signals)**:\n- **Citizen_Report** (CITIZEN-311-9921): Water gushing out of storm drain onto street, cars stranded.\n- **Water_Level** (IOT-DRAIN-402) [reading: 84.6 cm_above_normal]: Rapid water level spike detected at Hindmata nallah drain\n- **Road_Sensor** (ROAD-SEG-88) [reading: 1.0 ]: Road surface underwater at junction\n- **Transit** (TRANSIT-BUS-104) [reading: 3.4 km_per_hour]: Route 104 speed collapsed due to waterlogging\n\n\u26a0\ufe0f **Contradictory Reports (1 signals detected)**:\n- Source APP-USER-314 (citizen_report): \"Road is clear from my window, no delays at all.\" \u2014 Confidence penalized by 12%.\n  *Note*: Contradictions do not discard physical sensor warnings.\n\n\u2753 **Missing Information (1 dimensions)**:\n- Missing weather context: consider deploying mobile sensors or dispatching reconnaissance.\n\n\ud83d\udd04 **Alternative Explanation**: Road Blockage / Obstruction (81% probability).\n\n\ud83d\udccb **Recommended Operator Actions**:\n- Dispatch Municipal Stormwater & Drainage pumping crews.\n- Issue automated advisory to Transit AVL to reroute buses away from underpasses.\n- Monitor upstream sluice gates and adjacent nallah level sensors.",
+    "supporting_evidence_count": 4,
+    "conflicting_evidence_count": 1,
+    "missing_modalities": [
+      "weather_context"
+    ],
+    "recommended_actions": [
+      "Dispatch Municipal Stormwater & Drainage pumping crews.",
+      "Issue automated advisory to Transit AVL to reroute buses away from underpasses.",
+      "Monitor upstream sluice gates and adjacent nallah level sensors."
+    ],
+    "created_at": "2026-10-12T10:11:00+00:00",
+    "updated_at": "2026-10-12T10:25:00+00:00"
+  }
+]

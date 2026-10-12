@@ -1,0 +1,6 @@
+relationship_id,source_id,target_id,relationship_type,time_difference_sec,geographic_distance_m,evidence_summary,confidence,alternative_explanations
+REL-REAL-001,REAL-EVT-001,REAL-EVT-003,possible_contributor,300,55.0,Hindmata water depth surge directly precedes Dr. Ambedkar Road traffic slowdown.,0.92,Independent traffic signal malfunction
+REL-REAL-002,REAL-EVT-001,REAL-EVT-002,corroborates,420,165.0,Citizen reports of waist-deep water corroborate physical depth sensor reading.,0.88,Exaggerated citizen social media report
+REL-REAL-003,REAL-EVT-001,REAL-EVT-004,possible_contributor,1200,72.0,Waterlogging forced BEST transit authority to reroute bus lines.,0.90,Scheduled transit maintenance
+REL-REAL-004,REAL-EVT-001,REAL-EVT-005,spatially_related,1620,820.0,Submerged vehicle rescue emergency call located 820m downstream of flooded intersection.,0.80,Engine breakdown unrelated to flood
+REL-REAL-005,REAL-EVT-001,REAL-EVT-007,temporally_related,2100,1800.0,Suburban rail track flooding occurred during the same intense precipitation window.,0.85,Local railway culvert blockage

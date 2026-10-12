@@ -1,0 +1,49 @@
+infrastructure_id,name,type,latitude,longitude,city,country,source,tags,is_synthetic
+INFRA-MUM-346643796,National Centre for Training and Research into Cerebral Palsy,hospital,19.0516428,72.8321317,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""amenity"": ""hospital""}",False
+INFRA-MUM-621911847,Lower Parel,station,18.99568,72.8302756,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""operator"": ""WR"", ""railway"": ""station""}",False
+INFRA-MUM-632340589,Bhakti Park,station,19.028972,72.8775722,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""railway"": ""station""}",False
+INFRA-MUM-632342238,Wadala Depot,station,19.0388244,72.8740249,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""railway"": ""station""}",False
+INFRA-MUM-700886180,Sewri,station,18.9987796,72.8544218,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""operator"": ""CR"", ""railway"": ""station""}",False
+INFRA-MUM-700886403,Cotton Green,station,18.9871866,72.8438965,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""operator"": ""CR"", ""railway"": ""station""}",False
+INFRA-MUM-1650694464,King's Circle,station,19.0316822,72.8577375,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""operator"": ""CR"", ""railway"": ""station""}",False
+INFRA-MUM-2134856430,Unnamed Hospital,hospital,19.0493781,72.8698066,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""amenity"": ""hospital""}",False
+INFRA-MUM-2187315849,Testing Fire Station,fire_station,19.0396241,72.8538869,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""amenity"": ""fire_station""}",False
+INFRA-MUM-2444001671,Currey Road,station,18.9937486,72.8328556,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""operator"": ""WR"", ""railway"": ""station""}",False
+INFRA-MUM-2630075000,Bandra,station,19.0549792,72.8402203,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""operator"": ""WR"", ""railway"": ""station""}",False
+INFRA-MUM-2630075003,Dadar,station,19.0173761,72.8430265,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""operator"": ""CR"", ""railway"": ""station""}",False
+INFRA-MUM-2630075004,Dadar,station,19.0192269,72.8428479,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""operator"": ""WR"", ""railway"": ""station""}",False
+INFRA-MUM-2630075005,Mahim Junction,station,19.0406634,72.8466038,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""operator"": ""WR"", ""railway"": ""station""}",False
+INFRA-MUM-2647295173,Mysore Colony,motorway_junction,19.0275789,72.8850957,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""highway"": ""motorway_junction""}",False
+INFRA-MUM-2663219988,Chuna Bhatti,station,19.0517703,72.8690974,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""operator"": ""CR"", ""railway"": ""station""}",False
+INFRA-MUM-2663263713,Sion,station,19.0465213,72.8632834,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""operator"": ""CR"", ""railway"": ""station""}",False
+INFRA-MUM-2715412064,Bhakti Park,motorway_junction,19.0253019,72.8806074,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""highway"": ""motorway_junction""}",False
+INFRA-MUM-3462327239,Prabhadevi,station,19.0074717,72.8358965,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""operator"": ""WR"", ""railway"": ""station""}",False
+INFRA-MUM-3501418211,Chinchpokli,station,18.9871984,72.8326716,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""operator"": ""CR"", ""railway"": ""station""}",False
+INFRA-MUM-3501418212,Parel,station,19.0094817,72.8376614,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""operator"": ""WR"", ""railway"": ""station""}",False
+INFRA-MUM-3732540593,Wadala Bridge,station,19.0174849,72.8593168,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""railway"": ""station""}",False
+INFRA-MUM-3806743187,Acharya Atre Nagar,station,19.0236472,72.8637994,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""railway"": ""station""}",False
+INFRA-MUM-3806743188,Ambedkar Nagar,station,19.0015921,72.8442272,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""railway"": ""station""}",False
+INFRA-MUM-3806743192,Dadar East,station,19.0162531,72.8522274,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""railway"": ""station""}",False
+INFRA-MUM-3806743193,Guru Tegh Bahadur Nagar,station,19.0366871,72.8707858,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""railway"": ""station""}",False
+INFRA-MUM-3806743194,Sant Gadge Maharaj Chowk,station,18.9830921,72.8285867,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""railway"": ""station""}",False
+INFRA-MUM-3806743195,Mint Colony,station,18.9945142,72.8433086,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""railway"": ""station""}",False
+INFRA-MUM-3806743196,Naigaon,station,19.0095393,72.8478709,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""railway"": ""station""}",False
+INFRA-MUM-4264457295,Matunga,station,19.0274356,72.8501467,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""operator"": ""CR"", ""railway"": ""station""}",False
+INFRA-MUM-4264462833,Matunga Road,station,19.0278149,72.8466813,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""operator"": ""WR"", ""railway"": ""station""}",False
+INFRA-MUM-4264478427,Mahalaxmi,station,18.9825203,72.8242196,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""operator"": ""WR"", ""railway"": ""station""}",False
+INFRA-MUM-4264841906,Guru Tegh Bahadur Nagar,station,19.0380048,72.8643455,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""operator"": ""Central Railway"", ""railway"": ""station""}",False
+INFRA-MUM-4423695890,Smt S.R.Mehta and Sir K.P.Cardiac Institute,hospital,19.0323408,72.8595512,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""amenity"": ""hospital""}",False
+INFRA-MUM-4672225593,Pikale Hospital,hospital,19.0401523,72.844575,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""amenity"": ""hospital""}",False
+INFRA-MUM-4848773727,Mata Lachmi Hospital,hospital,19.0358379,72.8609822,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""amenity"": ""hospital""}",False
+INFRA-MUM-5090930970,Peoples Mobile Hospitals,hospital,19.0066529,72.8179411,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""amenity"": ""hospital""}",False
+INFRA-MUM-5099872961,Gleneagles Hospital Super Speciality and Transplant Center,hospital,18.9994432,72.8405011,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""amenity"": ""hospital"", ""emergency"": ""yes"", ""operator"": ""Gleneagles Hospital""}",False
+INFRA-MUM-5907165648,Unnamed Motorway_Junction,motorway_junction,19.0040978,72.811703,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""highway"": ""motorway_junction""}",False
+INFRA-MUM-6498408219,Lower Parel,station,18.9931201,72.8314698,Mumbai,India,OpenStreetMap Contributors (Overpass API),"{""railway"": ""station""}",False
+INFRA-NYC-357620244,Lenox Health Greenwich Village,hospital,40.7377778,-74.0008333,New York,United States,OpenStreetMap Contributors (Overpass API),"{""amenity"": ""hospital"", ""emergency"": ""yes"", ""operator"": ""Northwell Health""}",False
+INFRA-NYC-357642745,New York Eye and Ear Infirmary of Mount Sinai,hospital,40.7318799,-73.9845807,New York,United States,OpenStreetMap Contributors (Overpass API),"{""amenity"": ""hospital"", ""emergency"": ""no"", ""operator"": ""Mount Sinai Health System""}",False
+INFRA-NYC-368047094,New York Engine Company 221,fire_station,40.7131355,-73.9611384,New York,United States,OpenStreetMap Contributors (Overpass API),"{""amenity"": ""fire_station""}",False
+INFRA-NYC-368047441,FDNY Engine 8/Ladder 2/Battalion 8,fire_station,40.7568252,-73.9709356,New York,United States,OpenStreetMap Contributors (Overpass API),"{""amenity"": ""fire_station"", ""operator"": ""New York City Fire Department""}",False
+INFRA-NYC-368047840,New York Ladder Company 104,fire_station,40.7130823,-73.9611665,New York,United States,OpenStreetMap Contributors (Overpass API),"{""amenity"": ""fire_station""}",False
+INFRA-NYC-1581175993,NYU Langone Outpatient Surgery Center,hospital,40.7464784,-73.9717941,New York,United States,OpenStreetMap Contributors (Overpass API),"{""amenity"": ""hospital"", ""emergency"": ""no"", ""operator"": ""NYU Langone Health""}",False
+INFRA-NYC-2567563414,FDNY Engine 15/Ladder 18/Battalion 4,fire_station,40.7165272,-73.9836131,New York,United States,OpenStreetMap Contributors (Overpass API),"{""amenity"": ""fire_station"", ""operator"": ""New York City Fire Department""}",False
+INFRA-NYC-14219942455,Hassenfeild Children's Hospital at NYU Lagone,hospital,40.7458912,-73.9816024,New York,United States,OpenStreetMap Contributors (Overpass API),"{""amenity"": ""hospital""}",False
