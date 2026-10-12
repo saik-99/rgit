@@ -14,3 +14,40 @@ Your job is to manage, design, and integrate the autonomous AI Agents that reaso
    - How confident the system is and why uncertainty exists.
    - What action should be taken next (e.g., dispatch public works crew).
 4. **Handoff**: Provide a clean function or API for Person 1 to call from the backend.
+
+---
+
+## ✅ Implemented (feature/incident-agent)
+
+**Rule: tools decide, LLM only explains.** Cause, confidence, severity and actions come from deterministic Python tools. Gemini (optional) only rewrites the facts as a briefing, and its output is rejected if it changes the confidence number.
+
+### How Person 1 calls it
+```python
+from agents import analyze_incident, run_agent
+
+result = analyze_incident({"incident_id": "INC-1", "events": events})
+result["briefing"]            # operator text
+result["root_cause"], result["confidence"], result["severity"]
+result["conflicts"], result["integrity_flags"], result["recommended_actions"]
+result["steps_taken"]         # audit trail of every tool call
+
+out = run_agent("Explain INC-1", {"incident": {"events": events}})
+out["response"], out["steps_taken"]
+```
+Also accepts `{"causal_graph": {"nodes": [...]}}`, plus optional `confidence` / `severity` from the ML engine (the agent blends them as a cross-check).
+
+### Files
+| File | What it does |
+| --- | --- |
+| `agent_manager.py` | Orchestrator: runs tools in order, records steps, writes briefing |
+| `incident_agent.py` | Repo-contract entry + demo (`python -m agents.incident_agent`) |
+| `tools/graph_tools.py` | 9 tools: dedupe, reorder, rank causes, conflicts, integrity, silent sensors, confidence, severity, actions |
+| `prompts/system_prompts.md` | Gemini system prompt + few-shot example |
+| `tests/test_incident_agent.py` | 3 README demo scenarios + interface tests |
+
+### Run
+```bash
+python -m agents.incident_agent          # demo on synthetic stream
+python -m unittest discover -s agents/tests -t .
+```
+No extra packages needed. Optional Gemini: `pip install google-genai` and set `GEMINI_API_KEY` (model via `GEMINI_MODEL`, default `gemini-2.5-flash`).
