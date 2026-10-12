@@ -24,6 +24,7 @@ LATE_ARRIVAL_SEC = 300        # received >5 min after it happened = "late"
 SILENT_SENSOR_MIN = 10        # verified sensor quiet for 10+ min = "silent"
 
 CONFLICT_SIGNALS = {"ConflictingReport", "RoadClearReport", "AllClearReport"}
+CONTEXT_SIGNALS = {"HeavyRainfall"}   # supports a cause but is not itself a symptom
 
 # Fallback copy of data_and_ml/datasets/incident_vocabulary.json
 _FALLBACK_VOCAB = {
@@ -45,7 +46,28 @@ _FALLBACK_VOCAB = {
         "prior_probability": 0.10, "typical_severity": "Critical"},
 }
 
+# Causes the backend + ML engine use but incident_vocabulary.json lacks.
+# Added on the agent side only, so all three components share 6 causes.
+EXTRA_CAUSES = {
+    "RoadBlockage": {
+        "symptoms": ["LaneBlockageSensor", "TrafficSlowdown", "CitizenRoadBlockReport"],
+        "prior_probability": 0.10, "typical_severity": "Medium"},
+    "SeismicEvent": {
+        "symptoms": ["SeismicActivity", "CitizenShakingReport", "Citizen911EmergencyCall"],
+        "prior_probability": 0.05, "typical_severity": "Critical"},
+}
+
 ACTIONS = {
+    "RoadBlockage": [
+        "Send road maintenance crew to clear the obstruction",
+        "Reroute traffic and BEST buses around the blocked segment",
+        "Update traffic advisory for commuters",
+    ],
+    "SeismicEvent": [
+        "Activate disaster management cell and NDRF liaison",
+        "Inspect old and dilapidated buildings in the affected wards",
+        "Open shelters and keep hospitals on standby",
+    ],
     "DrainageFailure": [
         "Dispatch public works crew to clear the storm drain",
         "Divert traffic away from the flooded segment",
@@ -98,9 +120,12 @@ def load_vocabulary(path: str | None = None) -> dict:
     try:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-        return data.get("vocabulary", data)
+        vocab = dict(data.get("vocabulary", data))
     except (OSError, json.JSONDecodeError):
-        return _FALLBACK_VOCAB
+        vocab = dict(_FALLBACK_VOCAB)
+    for name, info in EXTRA_CAUSES.items():
+        vocab.setdefault(name, info)
+    return vocab
 
 
 # ---------------------------------------------------------------------------

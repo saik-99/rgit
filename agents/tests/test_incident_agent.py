@@ -102,5 +102,73 @@ class SocialAgent(unittest.TestCase):
         self.assertEqual(extract_rules("nice weather in Pune"), {})
 
 
+def backend_incident():
+    """Shaped like Person 1's Incident.to_dict(include_events=True) for the Hindmata seed."""
+    def e(i, src, minute, payload, dev, trust=0.9, verified=True, dup=False, anomaly=False):
+        t = f"2026-07-15T04:{minute:02d}:00"
+        return {"id": i, "source_type": src, "lat": 19.0112, "lon": 72.8512, "timestamp": t,
+                "received_at": t, "payload": payload, "device_id": dev, "trust": trust,
+                "signature_verified": verified, "is_duplicate": dup, "is_anomaly": anomaly}
+    return {"id": 1, "cause": "drainage_failure", "cause_confidence": 0.91,
+            "neighborhood": "Hindmata Junction, Parel, Mumbai", "events": [
+        e(1, "water_level", 0, {"value": 78.5, "description": "Water level rising at Hindmata nallah"}, "IOT-DRAIN-HM01", 0.95),
+        e(2, "water_level", 2, {"value": 82.3, "description": "Storm drain overflow confirmed"}, "IOT-DRAIN-HM02", 0.93),
+        e(3, "road_sensor", 4, {"status": "submerged", "description": "Road surface underwater"}, "ROAD-HM-01", 0.88),
+        e(4, "transit", 6, {"value": 3.2, "description": "BEST bus crawling due to waterlogging"}, "TRANSIT-BEST-104", 0.85, False),
+        e(5, "citizen_report", 8, {"text": "Paani bhar gaya Hindmata pe! Cars stuck"}, "CIT-1", 0.6, False),
+        e(6, "weather", 9, {"value": 85, "description": "Extremely heavy rainfall"}, "WX-1", 0.9),
+        e(7, "citizen_report", 12, {"text": "Road looks clear from my window, no issue here at all."}, "CIT-2", 0.5, False),
+        e(8, "water_level", 13, {"value": 78.5, "description": "Duplicate signal"}, "IOT-DRAIN-HM01", 0.95, dup=True),
+    ]}
+
+
+class TeamFormats(unittest.TestCase):
+    """Agent must understand Person 1 (backend) and Person 2/3 (data_and_ml) event formats."""
+
+    def test_signal_mapping(self):
+        from agents.tools.normalize import map_signal
+        self.assertEqual(map_signal("road_sensor", {"status": "submerged"}), "RoadInundation")
+        self.assertEqual(map_signal("citizen_report", {"text": "no flooding at all, road is dry"}), "ConflictingReport")
+        self.assertEqual(map_signal("citizen_report", {"text": "Paani bhar gaya"}), "Citizen311FloodCall")
+        self.assertEqual(map_signal("seismic", {}), "SeismicActivity")
+
+    def test_backend_incident(self):
+        from agents import analyze_backend_incident
+        r = analyze_backend_incident(backend_incident(), use_llm=False, use_ml=False)
+        self.assertEqual(r["root_cause"], "DrainageFailure")
+        self.assertTrue(r["agrees_with_engine"])
+        self.assertEqual(r["conflicts"][0]["verdict"], "outweighed")
+        self.assertEqual(r["duplicates_removed"][0]["flagged_by"], "upstream")
+
+    def test_backend_explain_route_input(self):
+        """Exactly what backend/app/routes/incidents.py /explain sends."""
+        inc = backend_incident()
+        r = analyze_incident({"incident_id": 1, "cause": "drainage_failure", "confidence": 0.91,
+                              "events": inc["events"]}, use_llm=False, use_ml=False)
+        self.assertEqual(r["root_cause"], "DrainageFailure")
+
+    def test_data_and_ml_format(self):
+        with open(os.path.join(ROOT, "data_and_ml", "integration", "example_input.json"),
+                  encoding="utf-8") as f:
+            events = json.load(f)
+        r = analyze_incident({"events": events}, use_llm=False, use_ml=False)
+        self.assertEqual(r["root_cause"], "DrainageFailure")
+        self.assertEqual(len(r["conflicts"]), 1)
+
+    def test_engine_disagreement_is_reported(self):
+        inc = backend_incident()
+        inc["cause"] = "earthquake"
+        from agents import analyze_backend_incident
+        r = analyze_backend_incident(inc, use_llm=False, use_ml=False)
+        self.assertFalse(r["agrees_with_engine"])
+        self.assertTrue(any("backend engine suggests" in x for x in r["uncertainty_reasons"]))
+
+    def test_ml_engine_never_crashes_agent(self):
+        """Whether or not data_and_ml imports cleanly, the agent must still answer."""
+        r = analyze_incident({"events": backend_incident()["events"]}, use_llm=False, use_ml=True)
+        self.assertEqual(r["root_cause"], "DrainageFailure")
+        self.assertIn(r["agrees_with_ml"], (True, False, None))
+
+
 if __name__ == "__main__":
     unittest.main()

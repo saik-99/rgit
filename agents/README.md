@@ -74,3 +74,27 @@ out["events"], out["incidents"], out["skipped"], out["steps_taken"]
 Official accounts get trust 0.9 and `integrity_verified=true`; citizens get 0.6. "Roads clear" posts become `ConflictingReport`.
 
 Demo: `python -m agents.social_agent`
+
+---
+
+## 🔗 Team integration (v4)
+
+`analyze_incident()` now accepts **all three event formats** in the repo and cross-checks with **both** other engines.
+
+| Format | Example keys | Handled by |
+| --- | --- | --- |
+| Agent / synthetic stream | `signal`, `timestamp`, `integrity_verified` | passes through |
+| Backend (Person 1) | `source_type`, `payload`, `signature_verified`, `trust`, `is_duplicate` | `tools/normalize.py` |
+| data_and_ml (Person 2/3) | `type`/`source_type`, `description`, `event_time`, `latitude`, `location` | `tools/normalize.py` |
+
+| Cross-check | Source | Output fields |
+| --- | --- | --- |
+| Backend engine | `cause`, `confidence` in the input | `engine_cause`, `agrees_with_engine` |
+| ML engine (Person 2/3) | `data_and_ml.incident_intelligence.analyze_events` | `ml_engine`, `agrees_with_ml`, `response_priority`, `data_completeness`, `check_next`, `nearest_infrastructure` |
+
+- If the ML engine is missing or crashes, the agent still answers and logs why in `steps_taken`.
+- If the ML engine says `verification_required`, "Verify on the ground first" becomes the first action.
+- Disagreement with either engine lowers confidence and is listed in `uncertainty_reasons`.
+- Vocabulary: the 4 causes in `incident_vocabulary.json` + `RoadBlockage` and `SeismicEvent` (added agent-side to match the backend/ML engines).
+
+No backend change needed: the existing `/incidents/{id}/explain` route already works.

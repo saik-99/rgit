@@ -22,8 +22,12 @@ import time
 
 try:  # works both as `agents.agent_manager` and when run from inside agents/
     from agents.tools import graph_tools as gt
+    from agents.tools.normalize import normalize_event
+    from agents.tools.ml_bridge import run_ml_engine, to_agent_cause
 except ImportError:  # pragma: no cover
     from tools import graph_tools as gt
+    from tools.normalize import normalize_event
+    from tools.ml_bridge import run_ml_engine, to_agent_cause
 
 PROMPT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                            "prompts", "system_prompts.md")
@@ -101,9 +105,19 @@ def _template_briefing(a: dict) -> str:
     for f in a["integrity_flags"]:
         if f["issue"] == "possible_tampering":
             lines.append(f"Security: {f['device_id']} may be tampered - {f['detail']}.")
+    if a.get("agrees_with_ml") is not None:
+        ml = a["ml_engine"]
+        lines.append(f"ML engine cross-check: {ml['agent_cause']} "
+                     f"{_pct(ml.get('cause_confidence') or 0)}, priority {ml.get('response_priority')} "
+                     + ("(agrees)." if a["agrees_with_ml"] else "(DISAGREES - review)."))
+    hosp = (a.get("nearest_infrastructure") or {}).get("hospital")
+    if isinstance(hosp, dict) and hosp.get("name"):
+        lines.append(f"Nearest hospital: {hosp['name']} ({hosp.get('distance_km')} km).")
     if a["uncertainty_reasons"]:
         lines.append("Why not 100%: " + "; ".join(a["uncertainty_reasons"]) + ".")
     lines.append("Next action: " + a["recommended_actions"][0] + ".")
+    if a.get("check_next"):
+        lines.append(f"Check next: {a['check_next']}.")
     return " ".join(lines)
 
 
@@ -144,7 +158,7 @@ def _llm_briefing(analysis: dict) -> str | None:
 # ---------------------------------------------------------------------------
 # Main entry: analyze_incident
 # ---------------------------------------------------------------------------
-def analyze_incident(incident_data: dict, use_llm: bool = True) -> dict:
+def analyze_incident(incident_data: dict, use_llm: bool = True, use_ml: bool = True) -> dict:
     """
     Input  : {"incident_id": ..., "events": [...]}  (or a causal_graph with nodes)
     Output : root cause, confidence, severity, conflicts, integrity flags,
@@ -156,14 +170,24 @@ def analyze_incident(incident_data: dict, use_llm: bool = True) -> dict:
         "load_vocabulary", gt.load_vocabulary,
         summary=lambda v: f"{len(v)} incident types loaded")
 
-    events = _extract_events(incident_data)
-    if not events:
+    raw_events = _extract_events(incident_data)
+    if not raw_events:
         return {"incident_id": incident_data.get("incident_id"), "error": "no events supplied",
                 "response": "No events were supplied for this incident.",
                 "steps_taken": steps.items}
 
+    # Accept agent, backend (Person 1) and data_and_ml (Person 2/3) formats
+    place = incident_data.get("neighborhood")
+    normalized = steps.run(
+        "normalize_events", lambda evs: [normalize_event(e, place) for e in evs], raw_events,
+        summary=lambda r: f"{len(r)} events in agent format")
+    backend_dups = [{"event_id": e["event_id"], "flagged_by": "upstream"}
+                    for e in normalized if e.get("is_duplicate")]
+    events = [e for e in normalized if not e.get("is_duplicate")]
+
     events, dups = steps.run("remove_duplicates", gt.remove_duplicates, events,
                              summary=lambda r: f"{len(r[1])} duplicate(s) removed")
+    dups = backend_dups + dups
     timeline, late = steps.run("reorder_timeline", gt.reorder_timeline, events,
                                summary=lambda r: f"{len(r[1])} late arrival(s) re-placed")
     ranking = steps.run("rank_causes", gt.rank_causes, timeline, vocab,
@@ -180,11 +204,43 @@ def analyze_incident(incident_data: dict, use_llm: bool = True) -> dict:
         "final_confidence", gt.final_confidence, top, conflicts, flags, silent,
         summary=lambda r: f"confidence {_pct(r[0])}")
 
-    # If Person 2's ML already computed confidence, blend it (agent = cross-check)
-    ml_conf = incident_data.get("confidence")
-    if isinstance(ml_conf, (int, float)) and 0 <= ml_conf <= 1:
-        confidence = round((confidence + ml_conf) / 2, 3)
-        reasons.append(f"blended with ML engine confidence {_pct(ml_conf)}")
+    for ev in timeline:
+        if ev.get("is_anomaly"):
+            flags.append({"event_id": ev.get("event_id"), "device_id": ev.get("device_id"),
+                          "issue": "statistical_anomaly",
+                          "detail": "Upstream anomaly detector flagged this reading"})
+
+    # Cross-check 1: backend engine's cause/confidence (if supplied)
+    engine_cause = to_agent_cause(incident_data.get("cause"))
+    engine_conf = incident_data.get("confidence")
+    agrees_with_engine = None
+    if engine_cause:
+        agrees_with_engine = engine_cause == top["cause"]
+        if not agrees_with_engine:
+            reasons.append(f"backend engine suggests {engine_cause} instead")
+    if isinstance(engine_conf, (int, float)) and 0 <= engine_conf <= 1 \
+            and agrees_with_engine is not False:
+        confidence = round((confidence + engine_conf) / 2, 3)
+        reasons.append(f"blended with backend engine confidence {_pct(engine_conf)}")
+
+    # Cross-check 2: Person 2/3's ML engine (data_and_ml.incident_intelligence)
+    ml = {"available": False, "error": "skipped"}
+    agrees_with_ml = None
+    if use_ml:
+        ml = steps.run("ml_engine_check", run_ml_engine, raw_events,
+                       incident_data.get("weather_context"),
+                       summary=lambda r: (f"ML says {r['report']['agent_cause']} "
+                                          f"{_pct(r['report']['cause_confidence'] or 0)}")
+                       if r.get("report") else f"unavailable ({r.get('error', 'no clusters')})"[:90])
+        rep = ml.get("report")
+        if rep:
+            agrees_with_ml = rep["agent_cause"] == top["cause"]
+            if not agrees_with_ml:
+                confidence = round(max(0.0, confidence - 0.10), 3)
+                reasons.append(f"ML engine suggests {rep['agent_cause']} (-10%)")
+            for w in rep.get("why_not_higher") or []:
+                if w not in reasons:
+                    reasons.append(f"ML: {w}")
 
     sources = {e.get("source_type") for e in timeline
                if e.get("signal") in top["matched_symptoms"]}
@@ -194,6 +250,10 @@ def analyze_incident(incident_data: dict, use_llm: bool = True) -> dict:
     actions = steps.run("recommend_actions", gt.recommend_actions, top["cause"],
                         confidence, conflicts, flags,
                         summary=lambda r: f"{len(r)} action(s)")
+    rep = ml.get("report") or {}
+    verify_msg = "Verify on the ground first (field team or drone) before full dispatch"
+    if rep.get("verification_required") and verify_msg not in actions:
+        actions.insert(0, verify_msg)
 
     location = next((e.get("location", {}).get("neighborhood") for e in timeline
                      if isinstance(e.get("location"), dict)), None)
@@ -218,6 +278,14 @@ def analyze_incident(incident_data: dict, use_llm: bool = True) -> dict:
         "silent_sensors": silent,
         "uncertainty_reasons": reasons,
         "recommended_actions": actions,
+        "engine_cause": engine_cause,
+        "agrees_with_engine": agrees_with_engine,
+        "ml_engine": rep or {"available": False, "error": ml.get("error")},
+        "agrees_with_ml": agrees_with_ml,
+        "response_priority": rep.get("response_priority"),
+        "data_completeness": rep.get("data_completeness"),
+        "check_next": rep.get("check_next"),
+        "nearest_infrastructure": rep.get("nearest_infrastructure"),
     }
 
     briefing = _llm_briefing(analysis) if use_llm else None

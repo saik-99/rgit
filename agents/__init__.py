@@ -8,4 +8,10 @@ def run_social_agent(*args, **kwargs):
     return _run(*args, **kwargs)
 
 
-__all__ = ["analyze_incident", "run_agent", "run_social_agent"]
+def analyze_backend_incident(*args, **kwargs):
+    """Run the agent on a backend Incident.to_dict(include_events=True)."""
+    from agents.adapters import analyze_backend_incident as _run
+    return _run(*args, **kwargs)
+
+
+__all__ = ["analyze_incident", "run_agent", "run_social_agent", "analyze_backend_incident"]
