@@ -187,7 +187,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
   ]
 
   return (
-    <div className="absolute top-20 left-4 z-20 flex items-start gap-3 pointer-events-auto">
+    <div className="absolute top-[180px] left-4 z-20 flex items-start gap-3 pointer-events-auto" style={{ top: '180px' }}>
       {/* 1. Thin Icon Rail */}
       <div className="flex flex-col items-center gap-2 p-2 bg-slate-950/85 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl">
         <button

@@ -245,10 +245,11 @@ export const IntroOverlay: React.FC<IntroOverlayProps> = ({
           >
             <button
               onClick={handleEnter}
-              className="group h-11 px-6 rounded-xl bg-[var(--accent)] text-slate-950 font-semibold text-sm flex items-center gap-2 hover:opacity-95 transition-all shadow-lg hover:shadow-cyan-500/20 active:scale-[0.98] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[#050811] cursor-pointer"
+              className="group h-11 px-6 rounded-xl bg-slate-950/90 hover:bg-cyan-950/40 font-semibold text-sm flex items-center gap-2.5 border border-cyan-500/60 hover:border-cyan-400 transition-all duration-300 shadow-[0_0_24px_rgba(34,211,238,0.25)] hover:shadow-[0_0_32px_rgba(34,211,238,0.4)] active:scale-[0.98] outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] cursor-pointer backdrop-blur-xl"
+              style={{ color: '#ffffff' }}
             >
-              <span>Enter control room</span>
-              <ArrowRight className="w-4 h-4 stroke-[2] transition-transform duration-300 group-hover:translate-x-[3px]" />
+              <span className="text-white group-hover:text-cyan-200 transition-colors">Enter control room</span>
+              <ArrowRight className="w-4 h-4 text-cyan-400 group-hover:text-cyan-200 group-hover:translate-x-1 transition-all duration-300 stroke-[2]" />
             </button>
 
             <span className="text-[11px] text-[var(--text-muted)] font-normal hidden sm:inline select-none">
