@@ -1,0 +1,66 @@
+[
+  {
+    "post_id": "9001",
+    "author": "@BMC_demo",
+    "official": true,
+    "created_at": "2026-07-15T04:30:00Z",
+    "text": "Heavy rainfall alert. Waterlogging reported at Hindmata, Dadar. Pumps deployed. Citizens advised to avoid the route.",
+    "received_at": "2026-07-15T04:30:00Z"
+  },
+  {
+    "post_id": "9002",
+    "author": "@rahul_k_demo",
+    "official": false,
+    "created_at": "2026-07-15T04:32:00Z",
+    "text": "Hindmata is flooded again, 2 feet water near the flyover. Buses stuck. #MumbaiRains",
+    "received_at": "2026-07-15T04:45:00Z"
+  },
+  {
+    "post_id": "9003",
+    "author": "@rahul_k_demo",
+    "official": false,
+    "created_at": "2026-07-15T04:33:00Z",
+    "text": "RT: Hindmata flooded, 2 ft water, avoid!! #MumbaiRains",
+    "received_at": "2026-07-15T04:33:00Z"
+  },
+  {
+    "post_id": "9004",
+    "author": "@TrafficPolice_demo",
+    "official": true,
+    "created_at": "2026-07-15T04:36:00Z",
+    "text": "Heavy traffic jam at Hindmata flyover, vehicles crawling. Commuters please take alternate routes.",
+    "received_at": "2026-07-15T04:36:00Z"
+  },
+  {
+    "post_id": "9005",
+    "author": "@amit_demo",
+    "official": false,
+    "created_at": "2026-07-15T04:40:00Z",
+    "text": "Hindmata road is clear now, no waterlogging, don't panic guys",
+    "received_at": "2026-07-15T04:40:00Z"
+  },
+  {
+    "post_id": "9006",
+    "author": "@sneha_demo",
+    "official": false,
+    "created_at": "2026-07-15T04:35:00Z",
+    "text": "Andheri subway closed, waist deep water. #MumbaiRains",
+    "received_at": "2026-07-15T04:35:00Z"
+  },
+  {
+    "post_id": "9007",
+    "author": "@foodie_demo",
+    "official": false,
+    "created_at": "2026-07-15T04:41:00Z",
+    "text": "Best vada pav in Dadar? Need suggestions for a rainy day",
+    "received_at": "2026-07-15T04:41:00Z"
+  },
+  {
+    "post_id": "9008",
+    "author": "@vikram_demo",
+    "official": false,
+    "created_at": "2026-07-15T04:50:00Z",
+    "text": "Power cut in Chembur since morning, no electricity in our whole lane",
+    "received_at": "2026-07-15T04:50:00Z"
+  }
+]
