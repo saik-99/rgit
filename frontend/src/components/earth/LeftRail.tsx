@@ -14,10 +14,12 @@ import {
   Cloud,
   CheckCircle2,
   Maximize2,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { V1Incident, EarthquakeItem } from '../../api'
 import type { GoogleFloodResponse, DataSourceItem } from '../../types'
+import { CITIES } from '../../utils/cities'
 import {
   fetchGoogleFlood,
   fetchEarthquakes,
@@ -44,9 +46,17 @@ interface LeftRailProps {
   earthquakes: EarthquakeItem[]
   floodData: GoogleFloodResponse | null
   onRefreshIncidents?: () => void
+  filters?: {
+    category: string
+    severity: string
+    dateRange: [number, number]
+    realOnly: boolean
+  }
+  onUpdateFilters?: (updater: (prev: any) => any) => void
+  dateBounds?: [number, number]
 }
 
-type PanelType = 'incidents' | 'weather' | 'flood' | 'earthquakes' | 'scenarios' | 'sources' | 'layers' | null
+type PanelType = 'incidents' | 'weather' | 'flood' | 'earthquakes' | 'scenarios' | 'sources' | 'layers' | 'filters' | null
 
 export const LeftRail: React.FC<LeftRailProps> = ({
   incidents,
@@ -65,6 +75,14 @@ export const LeftRail: React.FC<LeftRailProps> = ({
   earthquakes,
   floodData,
   onRefreshIncidents,
+  filters = {
+    category: 'all',
+    severity: 'all',
+    dateRange: [1695427200000, 1791835666000],
+    realOnly: false,
+  },
+  onUpdateFilters = () => {},
+  dateBounds = [1695427200000, 1791835666000],
 }) => {
   const [activePanel, setActivePanel] = useState<PanelType>(null)
   const [severityFilter, setSeverityFilter] = useState<string>('all')
@@ -96,14 +114,19 @@ export const LeftRail: React.FC<LeftRailProps> = ({
     }
   }, [activePanel, sources.length])
 
-  // City coordinates for Windy iframe
-  const cityCoords = activeCity.toLowerCase() === 'new york'
-    ? { lat: 40.7128, lon: -74.0060 }
-    : { lat: 19.0760, lon: 72.8777 }
+  // City coordinates for Windy iframe (Requirement 3: store in one CITIES constant)
+  const normCity = activeCity.toLowerCase().trim()
+  const isAllIndia = normCity === 'all' || normCity === 'all-india' || normCity === 'all india'
+  const cityInfo = CITIES[normCity]
 
-  const windyUrl = `https://embed.windy.com/embed2.html?lat=${cityCoords.lat}&lon=${cityCoords.lon}&detailLat=${cityCoords.lat}&detailLon=${cityCoords.lon}&width=650&height=850&zoom=10&level=surface&overlay=${weatherOverlay}&product=ecmwf&menu=&message=&marker=&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=default&metricTemp=default&radarRange=-1`
+  const windyLat = isAllIndia ? 22.5 : (cityInfo?.lat ?? 19.0760)
+  const windyLon = isAllIndia ? 79.0 : (cityInfo?.lon ?? 72.8777)
+  const windyZoom = isAllIndia ? 5 : 10
+  const centeredCityName = isAllIndia ? 'All India' : (cityInfo?.name ?? activeCity.charAt(0).toUpperCase() + activeCity.slice(1))
 
-  const windyFullscreenUrl = `https://embed.windy.com/embed2.html?lat=${cityCoords.lat}&lon=${cityCoords.lon}&detailLat=${cityCoords.lat}&detailLon=${cityCoords.lon}&width=1920&height=1080&zoom=10&level=surface&overlay=${weatherOverlay}&product=ecmwf&menu=&message=&marker=&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=default&metricTemp=default&radarRange=-1`
+  const windyUrl = `https://embed.windy.com/embed2.html?lat=${windyLat}&lon=${windyLon}&detailLat=${windyLat}&detailLon=${windyLon}&width=650&height=850&zoom=${windyZoom}&level=surface&overlay=${weatherOverlay}&product=ecmwf&menu=&message=&marker=&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=default&metricTemp=default&radarRange=-1`
+
+  const windyFullscreenUrl = `https://embed.windy.com/embed2.html?lat=${windyLat}&lon=${windyLon}&detailLat=${windyLat}&detailLon=${windyLon}&width=1920&height=1080&zoom=${windyZoom}&level=surface&overlay=${weatherOverlay}&product=ecmwf&menu=&message=&marker=&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=default&metricTemp=default&radarRange=-1`
 
   // Scenario trigger handler
   const handleRunScenario = async (name: string, label: string) => {
@@ -142,14 +165,14 @@ export const LeftRail: React.FC<LeftRailProps> = ({
   })
 
   const testScenarios = [
-    { id: 'drainage_failure', label: 'Drainage Failure', icon: '🌊', tooltip: 'Drainage Failure: Overwhelmed culverts & waterlogging' },
-    { id: 'heavy_rain', label: 'Heavy Rain Cloudburst', icon: '🌧️', tooltip: 'Heavy Rain: Extreme cloudburst spike' },
-    { id: 'shuffle_order', label: 'Shuffle Event Order', icon: '🔀', tooltip: 'Shuffle Order: Ingest telemetry out-of-order' },
-    { id: 'inject_duplicates', label: 'Inject Duplicates', icon: '📋', tooltip: 'Inject Duplicates: Replicated sensor telemetry' },
-    { id: 'drop_sensor', label: 'Drop / Quarantine Sensor', icon: '⚠️', tooltip: 'Drop Sensor: Flag culvert gauge as offline' },
-    { id: 'conflicting_report', label: 'Conflicting Report', icon: '🗣️', tooltip: 'Conflicting Report: Contradictory eyewitness report' },
-    { id: 'spoofed_sensor', label: 'Spoofed Sensor', icon: '🚫', tooltip: 'Spoofed Sensor: Invalid cryptographic signature quarantined' },
-    { id: 'earthquake', label: 'Simulated Earthquake', icon: '🌋', tooltip: 'Simulated Earthquake: Seismic alert telemetry' },
+    { id: 'drainage_failure', label: 'Drainage Failure', icon: Waves, tooltip: 'Drainage Failure: Overwhelmed culverts & waterlogging' },
+    { id: 'heavy_rain', label: 'Heavy Rain Cloudburst', icon: CloudRain, tooltip: 'Heavy Rain: Extreme cloudburst spike' },
+    { id: 'shuffle_order', label: 'Shuffle Event Order', icon: RotateCcw, tooltip: 'Shuffle Order: Ingest telemetry out-of-order' },
+    { id: 'inject_duplicates', label: 'Inject Duplicates', icon: Layers, tooltip: 'Inject Duplicates: Replicated sensor telemetry' },
+    { id: 'drop_sensor', label: 'Drop / Quarantine Sensor', icon: AlertTriangle, tooltip: 'Drop Sensor: Flag culvert gauge as offline' },
+    { id: 'conflicting_report', label: 'Conflicting Report', icon: FileText, tooltip: 'Conflicting Report: Contradictory eyewitness report' },
+    { id: 'spoofed_sensor', label: 'Spoofed Sensor', icon: AlertTriangle, tooltip: 'Spoofed Sensor: Invalid cryptographic signature quarantined' },
+    { id: 'earthquake', label: 'Simulated Earthquake', icon: Activity, tooltip: 'Simulated Earthquake: Seismic alert telemetry' },
   ]
 
   return (
@@ -228,8 +251,6 @@ export const LeftRail: React.FC<LeftRailProps> = ({
           <FileText className="w-5 h-5" />
         </button>
 
-        <div className="w-5 h-[1px] bg-white/10 my-1" />
-
         <button
           onClick={() => togglePanel('layers')}
           title="Map Layers"
@@ -240,6 +261,18 @@ export const LeftRail: React.FC<LeftRailProps> = ({
           }`}
         >
           <Layers className="w-5 h-5" />
+        </button>
+
+        <button
+          onClick={() => togglePanel('filters')}
+          title="Telemetry Filters"
+          className={`p-2.5 rounded-xl transition-all duration-200 ${
+            activePanel === 'filters'
+              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-lg shadow-amber-950/50'
+              : 'text-slate-400 hover:text-white hover:bg-white/10'
+          }`}
+        >
+          <SlidersHorizontal className="w-5 h-5" />
         </button>
       </div>
 
@@ -341,14 +374,14 @@ export const LeftRail: React.FC<LeftRailProps> = ({
                 </div>
 
                 <div className="text-[11px] text-slate-400 flex items-center justify-between px-1 flex-shrink-0">
-                  <span>Centered: <strong className="text-white">{activeCity}</strong></span>
-                  <span className="font-mono text-[10px] text-sky-400">{cityCoords.lat.toFixed(2)}°N, {cityCoords.lon.toFixed(2)}°E</span>
+                  <span>Centered: <strong className="text-white">{centeredCityName}</strong></span>
+                  <span className="text-[10px] text-sky-400">{windyLat.toFixed(2)}°N, {windyLon.toFixed(2)}°E</span>
                 </div>
 
                 {/* Iframe Viewport: flex: 1 with height 100%, no fixed height */}
                 <div className="rounded-xl overflow-hidden border border-white/10 bg-black flex-1 min-h-0 w-full relative">
                   <iframe
-                    key={`${activeCity}-${weatherOverlay}`}
+                    key={activeCity}
                     src={windyUrl}
                     title="Windy Weather Radar"
                     className="w-full h-full border-0 block"
@@ -496,20 +529,23 @@ export const LeftRail: React.FC<LeftRailProps> = ({
 
                 <div>
                   <div className="grid grid-cols-4 gap-2">
-                    {testScenarios.map(s => (
-                      <button
-                        key={s.id}
-                        onClick={() => handleRunScenario(s.id, s.label)}
-                        disabled={isRunningScenario}
-                        title={s.tooltip}
-                        className="group relative flex flex-col items-center justify-center p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-purple-500/20 hover:border-purple-400/50 hover:shadow-lg transition-all duration-150 disabled:opacity-40"
-                      >
-                        <span className="text-2xl group-hover:scale-110 transition-transform">{s.icon}</span>
-                        <span className="absolute bottom-full mb-1 hidden group-hover:block w-40 p-1.5 rounded-lg bg-slate-950 border border-white/20 text-white text-[10px] text-center shadow-2xl pointer-events-none z-50">
-                          {s.tooltip}
-                        </span>
-                      </button>
-                    ))}
+                    {testScenarios.map(s => {
+                      const Icon = s.icon
+                      return (
+                        <button
+                          key={s.id}
+                          onClick={() => handleRunScenario(s.id, s.label)}
+                          disabled={isRunningScenario}
+                          title={s.tooltip}
+                          className="group relative flex flex-col items-center justify-center p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-cyan-500/10 hover:border-cyan-400/50 hover:shadow-lg transition-all duration-150 disabled:opacity-40"
+                        >
+                          <Icon className="w-5 h-5 text-slate-300 group-hover:text-cyan-300 group-hover:scale-110 transition-transform stroke-[1.5]" />
+                          <span className="absolute bottom-full mb-1 hidden group-hover:block w-40 p-1.5 rounded-lg bg-slate-950 border border-white/20 text-white text-[10px] text-center shadow-2xl pointer-events-none z-50">
+                            {s.tooltip}
+                          </span>
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
 
@@ -665,6 +701,156 @@ export const LeftRail: React.FC<LeftRailProps> = ({
                 </div>
               </div>
             )}
+
+            {/* PANEL: FILTERS */}
+            {activePanel === 'filters' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal className="w-4 h-4 text-amber-400" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                      Telemetry Filters
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => onUpdateFilters(() => ({
+                      category: 'all',
+                      severity: 'all',
+                      dateRange: [dateBounds[0], dateBounds[1]],
+                      realOnly: false,
+                    }))}
+                    className="text-[10px] text-cyan-400 hover:text-cyan-200 hover:underline"
+                  >
+                    Reset All
+                  </button>
+                </div>
+
+                {/* 1. Category Chips */}
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                    Event Categories
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[
+                      { id: 'all', label: 'All Categories', icon: '🌐' },
+                      { id: 'flood', label: 'Flood & Rain', icon: '💧' },
+                      { id: 'traffic', label: 'Traffic & Road', icon: '🚗' },
+                      { id: 'power', label: 'Power Grid', icon: '⚡' },
+                      { id: 'transit', label: 'Transit & Rail', icon: '🚌' },
+                      { id: 'emergency', label: 'Emergency', icon: '🚨' },
+                    ].map(cat => {
+                      const isSelected = filters.category === cat.id
+                      return (
+                        <button
+                          key={cat.id}
+                          onClick={() => onUpdateFilters(f => ({ ...f, category: cat.id }))}
+                          className={`flex items-center gap-2 px-2.5 py-1.5 rounded-xl border text-[11px] font-medium transition-all ${
+                            isSelected
+                              ? 'bg-cyan-500/25 border-cyan-400 text-white shadow-md shadow-cyan-950/50 ring-1 ring-cyan-400/50'
+                              : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                          }`}
+                        >
+                          <span>{cat.icon}</span>
+                          <span className="truncate">{cat.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Severity Level Chips */}
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                    Incident Severity
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {[
+                      { id: 'all', label: 'All', color: '' },
+                      { id: 'high', label: 'High', color: 'text-rose-400 border-rose-500/40 bg-rose-500/15' },
+                      { id: 'medium', label: 'Medium', color: 'text-amber-400 border-amber-500/40 bg-amber-500/15' },
+                      { id: 'low', label: 'Low', color: 'text-emerald-400 border-emerald-500/40 bg-emerald-500/15' },
+                    ].map(s => {
+                      const isSelected = filters.severity === s.id
+                      return (
+                        <button
+                          key={s.id}
+                          onClick={() => onUpdateFilters(f => ({ ...f, severity: s.id }))}
+                          className={`flex-1 py-1 px-2 rounded-xl border text-center text-xs font-semibold transition-all ${
+                            isSelected
+                              ? `${s.color || 'bg-white/20 text-white border-white/40'} ring-1 ring-white/30 shadow-md`
+                              : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
+                          }`}
+                        >
+                          {s.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* 3. Date Range Slider */}
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 flex items-center justify-between">
+                    <span>Date Range</span>
+                    <span className="font-mono text-cyan-300 text-[10px]">
+                      {new Date(filters.dateRange[0]).toLocaleDateString(undefined, { month: 'short', year: '2-digit' })}
+                      {' - '}
+                      {new Date(filters.dateRange[1]).toLocaleDateString(undefined, { month: 'short', year: '2-digit' })}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={dateBounds[0]}
+                    max={dateBounds[1]}
+                    value={filters.dateRange[0]}
+                    onChange={e => {
+                      const val = Number(e.target.value)
+                      onUpdateFilters(f => ({ ...f, dateRange: [val, Math.max(val, f.dateRange[1])] }))
+                    }}
+                    className="w-full accent-cyan-400 bg-white/10 rounded-lg cursor-pointer h-1.5 mb-1"
+                  />
+                  <div className="flex justify-between text-[9px] font-mono text-slate-500">
+                    <span>{new Date(dateBounds[0]).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</span>
+                    <span>{new Date(dateBounds[1]).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</span>
+                  </div>
+                </div>
+
+                {/* 4. Real Data Only Toggle */}
+                <div className="pt-2 border-t border-white/10 flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span>Real Data Only</span>
+                      {filters.realOnly && (
+                        <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/20 px-1.5 py-0.2 rounded border border-emerald-500/40">
+                          144 Verified
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      Hide synthetic simulated telemetry
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => onUpdateFilters(f => ({ ...f, realOnly: !f.realOnly }))}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      filters.realOnly ? 'bg-emerald-500' : 'bg-slate-800'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        filters.realOnly ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Location Approx Dashed Outline Legend */}
+                <div className="pt-2 border-t border-white/10 text-[10px] text-slate-400 flex items-center gap-2">
+                  <span className="w-3.5 h-3.5 rounded-full border border-dashed border-white inline-block shrink-0" />
+                  <span>Dashed ring = City centroid approximate location</span>
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -677,7 +863,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
             <div className="flex items-center gap-3">
               <CloudRain className="w-5 h-5 text-sky-400" />
               <span className="font-semibold text-sm text-white tracking-wide">
-                Windy Weather Radar — <span className="text-sky-400">{activeCity}</span> ({cityCoords.lat.toFixed(2)}°N, {cityCoords.lon.toFixed(2)}°E)
+                Windy Weather Radar — <span className="text-sky-400">{centeredCityName}</span> ({windyLat.toFixed(2)}°N, {windyLon.toFixed(2)}°E)
               </span>
             </div>
 
@@ -744,7 +930,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
           {/* Fullscreen Iframe */}
           <div className="flex-1 w-full h-full min-h-0 bg-black relative">
             <iframe
-              key={`fs-${activeCity}-${weatherOverlay}`}
+              key={`fs-${activeCity}`}
               src={windyFullscreenUrl}
               title="Windy Fullscreen Weather Radar"
               className="w-full h-full border-0 block"

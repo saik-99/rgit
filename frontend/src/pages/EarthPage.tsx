@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { EarthMap } from '../components/earth/EarthMap'
 import { LeftRail } from '../components/earth/LeftRail'
 import { IncidentCard } from '../components/earth/IncidentCard'
 import { ReplayTimeline } from '../components/earth/ReplayTimeline'
 import { LiveTicker } from '../components/earth/LiveTicker'
 import { SearchBar } from '../components/earth/SearchBar'
+import { AllIndiaStatsCard } from '../components/earth/AllIndiaStatsCard'
 import {
-  fetchV1Cities,
   fetchV1Incidents,
   fetchV1Infrastructure,
   fetchV1Rainfall,
+  fetchV1EventsGeoJSON,
+  fetchV1Stats,
   fetchWeather,
   fetchEarthquakes,
   fetchGoogleFlood,
@@ -17,12 +19,64 @@ import {
   type EarthquakeItem,
 } from '../api'
 import type { WeatherMetrics, GoogleFloodResponse } from '../types'
+import { SeverityChip } from '../ui/primitives'
+import { Globe, CloudRain, Play, X } from 'lucide-react'
+import { CITIES, INDIAN_CITY_KEYS } from '../utils/cities'
+import { getCityRainfall, getAllIndiaMaxRainfall } from '../utils/weather'
+
+const CITY_CHIPS = [
+  { id: 'all', label: 'All India' },
+  { id: 'mumbai', label: 'Mumbai' },
+  { id: 'pune', label: 'Pune' },
+  { id: 'nagpur', label: 'Nagpur' },
+  { id: 'delhi', label: 'Delhi' },
+  { id: 'bengaluru', label: 'Bengaluru' },
+  { id: 'hyderabad', label: 'Hyderabad' },
+  { id: 'guwahati', label: 'Guwahati' },
+]
 
 export const EarthPage: React.FC = () => {
-  const [cities, setCities] = useState<string[]>(['Mumbai', 'New York'])
-  const [activeCity, setActiveCity] = useState<string>('Mumbai')
+  const [activeCity, setActiveCity] = useState<string>('all')
   const [incidents, setIncidents] = useState<V1Incident[]>([])
   const [selectedIncident, setSelectedIncident] = useState<V1Incident | null>(null)
+
+  // GeoJSON & Stats
+  const [eventsGeoJSON, setEventsGeoJSON] = useState<any>(null)
+  const [stats, setStats] = useState<any>(null)
+
+  // Rain Pill state: show "—" while loading, and calculate max for All India
+  const [rainText, setRainText] = useState<string>('—')
+
+  // Operator Status per incident: New -> Acknowledged -> Dispatched -> Resolved
+  const [operatorStatuses, setOperatorStatuses] = useState<
+    Record<string, { status: 'New' | 'Acknowledged' | 'Dispatched' | 'Resolved'; timestamp: number }>
+  >({})
+
+  // Audio chime & muting
+  const [isMuted, setIsMuted] = useState<boolean>(false)
+
+  // New High Incident Pop toast & bounce animation state
+  const [newHighToast, setNewHighToast] = useState<{ show: boolean; incident: V1Incident; title: string } | null>(null)
+
+  // Tour State
+  const [isTouring, setIsTouring] = useState<boolean>(false)
+  const [tourIncident, setTourIncident] = useState<V1Incident | null>(null)
+  const [tourCaption, setTourCaption] = useState<string | null>(null)
+  const tourTimeoutRef = useRef<any>(null)
+
+  // Filters State
+  const [dateBounds, setDateBounds] = useState<[number, number]>([1695427200000, 1791835666000])
+  const [filters, setFilters] = useState<{
+    category: string
+    severity: string
+    dateRange: [number, number]
+    realOnly: boolean
+  }>({
+    category: 'all',
+    severity: 'all',
+    dateRange: [1695427200000, 1791835666000],
+    realOnly: false,
+  })
 
   // Map layer states
   const [showInfrastructure, setShowInfrastructure] = useState<boolean>(false)
@@ -36,23 +90,61 @@ export const EarthPage: React.FC = () => {
   const [showFloodGauges, setShowFloodGauges] = useState<boolean>(false)
   const [floodData, setFloodData] = useState<GoogleFloodResponse | null>(null)
 
-  // Weather metrics for top-center pill
+  // Weather metrics
   const [weather, setWeather] = useState<WeatherMetrics | null>(null)
 
   const [isReplayOpen, setIsReplayOpen] = useState<boolean>(false)
   const [highlightedEventId, setHighlightedEventId] = useState<string | null>(null)
 
-  // 1. Load initial cities & incidents
-  const loadData = async () => {
+  // Two-tone Web Audio chime
+  const playTwoToneChime = () => {
+    if (isMuted) return
     try {
-      const loadedCities = await fetchV1Cities()
-      if (loadedCities && loadedCities.length > 0) {
-        setCities(loadedCities)
-      }
-    } catch (err) {
-      console.warn('Failed to load cities:', err)
-    }
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext
+      if (!AudioCtx) return
+      const ctx = new AudioCtx()
+      const now = ctx.currentTime
 
+      const osc1 = ctx.createOscillator()
+      const gain1 = ctx.createGain()
+      osc1.type = 'sine'
+      osc1.frequency.setValueAtTime(587.33, now)
+      gain1.gain.setValueAtTime(0.12, now)
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.3)
+      osc1.connect(gain1)
+      gain1.connect(ctx.destination)
+      osc1.start(now)
+      osc1.stop(now + 0.3)
+
+      const osc2 = ctx.createOscillator()
+      const gain2 = ctx.createGain()
+      osc2.type = 'sine'
+      osc2.frequency.setValueAtTime(880, now + 0.14)
+      gain2.gain.setValueAtTime(0.15, now + 0.14)
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.5)
+      osc2.connect(gain2)
+      gain2.connect(ctx.destination)
+      osc2.start(now + 0.14)
+      osc2.stop(now + 0.5)
+    } catch {
+      // AudioContext may need user gesture
+    }
+  }
+
+  // Unified selectCity function (Requirement 2: used by both city chips and All India bar chart)
+  const selectCity = (cityId: string) => {
+    const norm = (cityId || 'all').toLowerCase().trim()
+    setActiveCity(norm)
+    if (norm !== 'all' && norm !== 'all-india' && norm !== 'all india') {
+      const cityInc = incidents.find(i => (i.city || '').toLowerCase() === norm)
+      if (cityInc) {
+        setSelectedIncident(cityInc)
+      }
+    }
+  }
+
+  // 1. Load initial data
+  const loadData = async () => {
     try {
       const loadedIncidents = await fetchV1Incidents()
       setIncidents(loadedIncidents)
@@ -62,20 +154,122 @@ export const EarthPage: React.FC = () => {
     } catch (err) {
       console.warn('Failed to load incidents:', err)
     }
+
+    try {
+      const geoData = await fetchV1EventsGeoJSON()
+      setEventsGeoJSON(geoData)
+      if (geoData?.features?.length > 0) {
+        const timestamps = geoData.features
+          .map((f: any) => new Date(f.properties?.time).getTime())
+          .filter((t: number) => !isNaN(t) && t > 0)
+        if (timestamps.length > 0) {
+          const min = Math.min(...timestamps)
+          const max = Math.max(...timestamps)
+          setDateBounds([min, max])
+          setFilters(prev => ({
+            ...prev,
+            dateRange: [min, max],
+          }))
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to load GeoJSON events:', err)
+    }
+
+    try {
+      const statsData = await fetchV1Stats()
+      setStats(statsData)
+    } catch (err) {
+      console.warn('Failed to load stats:', err)
+    }
   }
 
   useEffect(() => {
     loadData()
   }, [])
 
-  // 2. Fetch weather for activeCity
+  // Requirement 4: RAIN PILL per city — fetch weather for selected city's lat/lon, show "—" while loading
+  // All India shows the city with highest rainfall: "Max 185 mm · Mumbai"
   useEffect(() => {
-    fetchWeather(activeCity)
+    let isMounted = true
+    setRainText('—')
+
+    const norm = activeCity.toLowerCase().trim()
+    const isAll = norm === 'all' || norm === 'all-india' || norm === 'all india'
+
+    if (isAll) {
+      getAllIndiaMaxRainfall().then(({ maxRain, maxCity }) => {
+        if (isMounted) {
+          setRainText(`Max ${maxRain} mm · ${maxCity}`)
+        }
+      })
+    } else {
+      getCityRainfall(norm).then(val => {
+        if (isMounted) {
+          setRainText(`${val} mm`)
+        }
+      })
+    }
+
+    return () => {
+      isMounted = false
+    }
+  }, [activeCity])
+
+  // WebSocket for new high-incident detection
+  useEffect(() => {
+    let ws: WebSocket | null = null
+    let reconnectTimeout: any = null
+
+    function connect() {
+      try {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+        const wsUrl = `${protocol}//${window.location.host}/api/stream`
+        ws = new WebSocket(wsUrl)
+
+        ws.onmessage = event => {
+          try {
+            const data = JSON.parse(event.data)
+            if (data.type === 'incident_updated' && data.incident) {
+              const inc: V1Incident = data.incident
+              const isHigh =
+                (inc.severity_level || '').toLowerCase() === 'high' || (inc.severity_score || 0) >= 70
+
+              if (isHigh) {
+                playTwoToneChime()
+                setNewHighToast({ show: true, incident: inc, title: inc.title })
+              }
+            }
+          } catch {
+            // Ignore
+          }
+        }
+
+        ws.onerror = () => ws?.close()
+        ws.onclose = () => {
+          reconnectTimeout = setTimeout(connect, 6000)
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    connect()
+    return () => {
+      if (ws) ws.close()
+      clearTimeout(reconnectTimeout)
+    }
+  }, [isMuted])
+
+  // Fetch weather risk
+  useEffect(() => {
+    const cityToFetch = activeCity === 'all' ? 'Mumbai' : activeCity
+    fetchWeather(cityToFetch)
       .then(data => setWeather(data))
       .catch(() => {})
   }, [activeCity])
 
-  // 3. Fetch earthquakes
+  // Fetch earthquakes
   useEffect(() => {
     fetchEarthquakes('global', 2.5)
       .then(res => {
@@ -84,56 +278,163 @@ export const EarthPage: React.FC = () => {
       .catch(() => {})
   }, [])
 
-  // 4. Fetch Google Flood data
+  // Fetch Google Flood data
   useEffect(() => {
     fetchGoogleFlood()
       .then(data => setFloodData(data))
       .catch(() => {})
   }, [])
 
-  // 5. Fetch layer data when toggled
+  // Fetch layer data when toggled
   useEffect(() => {
     if (showInfrastructure) {
-      fetchV1Infrastructure(activeCity).then(setInfrastructureData)
+      const c = activeCity === 'all' ? 'mumbai' : activeCity
+      fetchV1Infrastructure(c).then(setInfrastructureData)
     }
   }, [showInfrastructure, activeCity])
 
   useEffect(() => {
     if (showRainfall) {
-      fetchV1Rainfall(activeCity).then(setRainfallData)
+      const c = activeCity === 'all' ? 'mumbai' : activeCity
+      fetchV1Rainfall(c).then(setRainfallData)
     }
   }, [showRainfall, activeCity])
 
-  const handleSelectCity = (city: string) => {
-    setActiveCity(city)
-    // Find first incident in selected city if available
-    const cityInc = incidents.find(i => (i.city || '').toLowerCase().includes(city.toLowerCase()))
-    if (cityInc) {
-      setSelectedIncident(cityInc)
-    }
+  // Operator status advancement
+  const handleAdvanceOperatorStatus = (incidentId: string) => {
+    setOperatorStatuses(prev => {
+      const current = prev[incidentId]?.status || 'New'
+      const next: 'New' | 'Acknowledged' | 'Dispatched' | 'Resolved' =
+        current === 'New'
+          ? 'Acknowledged'
+          : current === 'Acknowledged'
+          ? 'Dispatched'
+          : 'Resolved'
+      return {
+        ...prev,
+        [incidentId]: { status: next, timestamp: Date.now() },
+      }
+    })
   }
 
-  // Rainfall and flood risk values for pill
-  const rain24h = weather?.past_24h_rainfall_mm ?? (activeCity.toLowerCase() === 'mumbai' ? 112.4 : 14.8)
-  const floodRiskLevel = weather?.flood_risk_level ?? (activeCity.toLowerCase() === 'mumbai' ? 'High' : 'Low')
+  // Reactive filtering of GeoJSON features
+  const filteredGeoJSON = useMemo(() => {
+    if (!eventsGeoJSON || !eventsGeoJSON.features) return eventsGeoJSON
 
-  const riskBadgeClass =
-    floodRiskLevel === 'Severe' || floodRiskLevel === 'High'
-      ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-      : floodRiskLevel === 'Moderate'
-      ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-      : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+    const features = eventsGeoJSON.features.filter((f: any) => {
+      const p = f.properties || {}
+      if (filters.realOnly && p.is_synthetic) return false
+      if (filters.severity !== 'all' && (p.severity || '').toLowerCase() !== filters.severity.toLowerCase()) {
+        return false
+      }
+      if (filters.category !== 'all') {
+        const cat = filters.category.toLowerCase()
+        const type = (p.type || '').toLowerCase()
+        const tax = (p.taxonomy_code || '').toUpperCase()
+        if (cat === 'flood' && !(type === 'water_level' || tax.includes('FLOOD') || tax.includes('WATER'))) return false
+        if (cat === 'traffic' && !(type === 'road_sensor' || tax.includes('TRAFFIC'))) return false
+        if (cat === 'power' && !tax.includes('POWER')) return false
+        if (cat === 'transit' && !(type === 'transit' || tax.includes('TRANSIT'))) return false
+        if (cat === 'emergency' && !(type === 'emergency_call' || tax.includes('EMERGENCY'))) return false
+      }
+      if (p.time) {
+        const t = new Date(p.time).getTime()
+        if (!isNaN(t) && (t < filters.dateRange[0] || t > filters.dateRange[1])) {
+          return false
+        }
+      }
+      return true
+    })
 
-  const riskDotClass =
-    floodRiskLevel === 'Severe' || floodRiskLevel === 'High'
-      ? 'bg-rose-400 animate-pulse'
-      : floodRiskLevel === 'Moderate'
-      ? 'bg-amber-400'
-      : 'bg-emerald-400'
+    return {
+      type: 'FeatureCollection',
+      features,
+    }
+  }, [eventsGeoJSON, filters])
+
+  // Active incidents count (Resolved pins excluded from stat)
+  const activeIncidentsCount = useMemo(() => {
+    const list = activeCity === 'all' ? incidents : incidents.filter(i => (i.city || '').toLowerCase() === activeCity.toLowerCase())
+    return list.filter(i => (operatorStatuses[i.incident_id]?.status || 'New') !== 'Resolved').length
+  }, [incidents, activeCity, operatorStatuses])
+
+  // Tour management
+  const stopTour = () => {
+    setIsTouring(false)
+    setTourIncident(null)
+    setTourCaption(null)
+    if (tourTimeoutRef.current) clearTimeout(tourTimeoutRef.current)
+  }
+
+  const runTourStep = (list: V1Incident[], idx: number) => {
+    if (idx >= list.length) {
+      stopTour()
+      return
+    }
+
+    const cur = list[idx]
+    setTourIncident(cur)
+    setSelectedIncident(cur)
+    const conf = Math.round((cur.cause_confidence || 0) * 100)
+    setTourCaption(`${cur.title} · ${cur.severity_level || 'Medium'} · ${conf}% confidence`)
+
+    tourTimeoutRef.current = setTimeout(() => {
+      runTourStep(list, idx + 1)
+    }, 4000)
+  }
+
+  const handleStartTour = () => {
+    if (isTouring) {
+      stopTour()
+      return
+    }
+
+    let tourList: V1Incident[] = []
+    if (activeCity === 'all') {
+      INDIAN_CITY_KEYS.forEach(c => {
+        const cityList = incidents
+          .filter(i => (i.city || '').toLowerCase() === c && (operatorStatuses[i.incident_id]?.status || 'New') !== 'Resolved')
+          .sort((a, b) => (b.severity_score || 0) - (a.severity_score || 0))
+        if (cityList.length > 0) {
+          tourList.push(cityList[0])
+        }
+      })
+    } else {
+      tourList = incidents
+        .filter(i => (i.city || '').toLowerCase() === activeCity.toLowerCase() && (operatorStatuses[i.incident_id]?.status || 'New') !== 'Resolved')
+        .sort((a, b) => (b.severity_score || 0) - (a.severity_score || 0))
+        .slice(0, 5)
+    }
+
+    if (tourList.length === 0) return
+
+    setIsTouring(true)
+    runTourStep(tourList, 0)
+  }
+
+  useEffect(() => {
+    if (!isTouring) return
+
+    const handleInterrupt = (e: MouseEvent | KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      if (target?.closest('#tour-caption-box') || target?.closest('#tour-button')) return
+      stopTour()
+    }
+
+    window.addEventListener('click', handleInterrupt)
+    window.addEventListener('keydown', handleInterrupt)
+    return () => {
+      window.removeEventListener('click', handleInterrupt)
+      window.removeEventListener('keydown', handleInterrupt)
+    }
+  }, [isTouring])
+
+  const isAllIndia = activeCity.toLowerCase() === 'all' || activeCity.toLowerCase() === 'all-india' || activeCity.toLowerCase() === 'all india'
+  const floodRiskLevel = weather?.flood_risk_level ?? (activeCity.toLowerCase() === 'mumbai' ? 'High' : 'Moderate')
 
   return (
-    <div className="relative w-screen h-screen bg-black overflow-hidden font-sans select-none">
-      {/* 1. MapLibre Fullscreen 3D Globe */}
+    <div className="relative w-screen h-screen bg-black overflow-hidden select-none">
+      {/* 1. MapLibre Fullscreen 3D Globe with GeoJSON pins */}
       <EarthMap
         incidents={incidents}
         selectedIncident={selectedIncident}
@@ -152,68 +453,129 @@ export const EarthPage: React.FC = () => {
         showFloodGauges={showFloodGauges}
         highlightedEventId={highlightedEventId}
         onSelectEvent={id => setHighlightedEventId(id)}
+        eventsGeoJSON={filteredGeoJSON}
+        allIndiaStats={stats}
+        onSelectCity={selectCity}
+        tourIncident={tourIncident}
       />
 
-      {/* 2. Top-Left Search Bar */}
-      <SearchBar
-        incidents={incidents}
-        onSelectIncident={inc => {
-          setSelectedIncident(inc)
-          if (inc.city) setActiveCity(inc.city)
-        }}
-      />
+      {/* 2. Top-Left Search Bar + Stats */}
+      <div id="tour-button">
+        <SearchBar
+          incidents={incidents}
+          onSelectIncident={inc => {
+            setSelectedIncident(inc)
+            if (inc.city) selectCity(inc.city.toLowerCase())
+          }}
+          onStartTour={handleStartTour}
+          isTouring={isTouring}
+          isMuted={isMuted}
+          onToggleMute={() => setIsMuted(p => !p)}
+          activeIncidentsCount={activeIncidentsCount}
+        />
+      </div>
 
-      {/* 3. Top-Center Small Glass Pill: City name, rain mm/24h, flood risk chip */}
-      <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 flex items-center gap-2.5 px-3 py-1.5 bg-slate-950/85 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl pointer-events-auto text-xs text-white">
-        {/* City Toggle Buttons */}
-        <div className="flex items-center gap-1 bg-white/5 p-0.5 rounded-full">
-          {cities.map(c => {
-            const isActive = activeCity.toLowerCase() === c.toLowerCase()
+      {/* 3. Requirement 5: Top City Bar — Never overflow, horizontally scrollable city list with status chips inside */}
+      <div
+        className={`absolute top-4 left-1/2 transform -translate-x-1/2 z-20 px-3 py-1.5 bg-[var(--bg-panel)] backdrop-blur-xl border border-[var(--border)] rounded-full shadow-2xl pointer-events-auto text-xs text-[var(--text)] flex items-center gap-2.5 overflow-hidden transition-all duration-200 ${
+          selectedIncident
+            ? 'max-w-[560px] 2xl:max-w-[850px]'
+            : 'max-w-[620px] 2xl:max-w-none'
+        }`}
+      >
+        {/* Horizontally scrollable city chips */}
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar min-w-0 flex-1 whitespace-nowrap">
+          {CITY_CHIPS.map(c => {
+            const isActive = activeCity.toLowerCase() === c.id.toLowerCase()
             return (
               <button
-                key={c}
-                onClick={() => handleSelectCity(c)}
-                className={`px-2.5 py-1 rounded-full text-xs font-bold transition-all ${
+                key={c.id}
+                onClick={() => selectCity(c.id)}
+                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
                   isActive
-                    ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-white/10'
+                    ? 'bg-[var(--accent)] text-slate-950 font-semibold shadow-md'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-white/5'
                 }`}
               >
-                {c}
+                {c.id === 'all' && <Globe className="w-3.5 h-3.5 stroke-[1.5]" />}
+                <span>{c.label}</span>
               </button>
             )
           })}
         </div>
 
-        <div className="w-[1px] h-3.5 bg-white/15" />
+        <div className="w-[1px] h-3.5 bg-white/10 shrink-0" />
 
-        {/* Rain mm/24h */}
-        <div className="flex items-center gap-1.5 font-medium text-slate-200">
-          <span>🌧️</span>
-          <span className="font-mono font-semibold text-cyan-300">
-            {rain24h} mm/24h
+        {/* Rain status chip inside top bar */}
+        <div className="flex items-center gap-1.5 text-[var(--text-muted)] whitespace-nowrap shrink-0 text-xs">
+          <CloudRain className="w-3.5 h-3.5 text-[var(--accent)] stroke-[1.5]" />
+          <span className="text-[var(--text)] font-medium">
+            {rainText}
           </span>
         </div>
 
-        <div className="w-[1px] h-3.5 bg-white/15" />
+        <div className="w-[1px] h-3.5 bg-white/10 shrink-0" />
 
-        {/* Flood Risk Chip */}
-        <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] tracking-wide border uppercase flex items-center gap-1.5 ${riskBadgeClass}`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${riskDotClass}`} />
-          <span>{floodRiskLevel} Risk</span>
-        </span>
+        {/* Risk status chip inside top bar */}
+        <div className="shrink-0 flex items-center">
+          <SeverityChip level={isAllIndia ? 'Low' : floodRiskLevel} />
+        </div>
       </div>
 
-      {/* 4. Left Thin Icon Rail & Expandable Glass Panels */}
+      {/* 4. NEW-INCIDENT POP Toast */}
+      {newHighToast && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 bg-[var(--bg-panel)] backdrop-blur-xl border border-rose-500/40 px-4 py-2 rounded-xl text-xs flex items-center gap-3 shadow-2xl">
+          <span className="w-2 h-2 rounded-full bg-[var(--sev-high)] animate-ping" />
+          <span className="text-[var(--text)]">
+            New high-severity incident · <span className="font-semibold">{newHighToast.title}</span>
+          </span>
+          <button
+            onClick={() => {
+              const inc = newHighToast.incident
+              if (inc.city) selectCity(inc.city.toLowerCase())
+              setSelectedIncident(inc)
+              setNewHighToast(null)
+            }}
+            className="px-2.5 py-1 rounded-lg bg-[var(--accent)] text-slate-950 font-semibold text-[11px] hover:opacity-90 transition-opacity"
+          >
+            View
+          </button>
+          <button
+            onClick={() => setNewHighToast(null)}
+            className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--text)]"
+          >
+            <X className="w-3.5 h-3.5 stroke-[1.5]" />
+          </button>
+        </div>
+      )}
+
+      {/* 5. TOUR Bottom-Center Caption */}
+      {isTouring && tourCaption && (
+        <div
+          id="tour-caption-box"
+          className="fixed bottom-12 left-1/2 -translate-x-1/2 z-40 bg-[var(--bg-panel)] backdrop-blur-xl border border-[var(--border)] px-4 py-2 rounded-xl text-xs flex items-center gap-3 shadow-2xl"
+        >
+          <Play className="w-3.5 h-3.5 text-[var(--accent)] shrink-0 fill-current" />
+          <span className="text-[var(--text)] font-medium">{tourCaption}</span>
+          <button
+            onClick={stopTour}
+            className="px-2 py-0.5 rounded border border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--text)] hover:border-[var(--accent)] text-[11px] transition-colors"
+          >
+            Stop
+          </button>
+        </div>
+      )}
+
+      {/* 6. Left Thin Icon Rail & Expandable Panels */}
       <LeftRail
         incidents={incidents}
         selectedIncident={selectedIncident}
         onSelectIncident={inc => {
           setSelectedIncident(inc)
-          if (inc.city) setActiveCity(inc.city)
+          if (inc.city) selectCity(inc.city.toLowerCase())
         }}
         activeCity={activeCity}
-        onSelectCity={handleSelectCity}
+        onSelectCity={selectCity}
         showInfrastructure={showInfrastructure}
         onToggleInfrastructure={() => setShowInfrastructure(prev => !prev)}
         showRainfall={showRainfall}
@@ -225,9 +587,12 @@ export const EarthPage: React.FC = () => {
         earthquakes={earthquakes}
         floodData={floodData}
         onRefreshIncidents={loadData}
+        filters={filters}
+        onUpdateFilters={setFilters}
+        dateBounds={dateBounds}
       />
 
-      {/* 5. Right Incident Diagnostic Card */}
+      {/* 7. Right Incident Diagnostic Card */}
       <IncidentCard
         incident={selectedIncident}
         onClose={() => {
@@ -237,9 +602,24 @@ export const EarthPage: React.FC = () => {
         onOpenReplay={() => setIsReplayOpen(true)}
         highlightedEventId={highlightedEventId}
         onSelectEvent={id => setHighlightedEventId(id)}
+        operatorStatus={selectedIncident ? operatorStatuses[selectedIncident.incident_id]?.status || 'New' : 'New'}
+        operatorTimestamp={selectedIncident ? operatorStatuses[selectedIncident.incident_id]?.timestamp : undefined}
+        onAdvanceOperatorStatus={handleAdvanceOperatorStatus}
       />
 
-      {/* 6. Bottom Timeline Replay */}
+      {/* 8. Requirement 5: All India Card collapses to small pill above ticker when incident card is open */}
+      {isAllIndia && stats && (
+        <AllIndiaStatsCard
+          stats={stats}
+          onSelectCity={selectCity}
+          isCollapsed={Boolean(selectedIncident)}
+          onToggleCollapse={() => {
+            if (selectedIncident) setSelectedIncident(null)
+          }}
+        />
+      )}
+
+      {/* 9. Bottom Timeline Replay */}
       {isReplayOpen && selectedIncident && (
         <ReplayTimeline
           incident={selectedIncident}
@@ -247,7 +627,7 @@ export const EarthPage: React.FC = () => {
         />
       )}
 
-      {/* 7. Bottom-Left Live Telemetry Ticker (Filtered to activeCity) */}
+      {/* 10. Bottom-Left Live Telemetry Ticker */}
       <LiveTicker activeCity={activeCity} />
     </div>
   )

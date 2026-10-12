@@ -1,0 +1,144 @@
+{
+  "name": "Urban Incident WhatsApp Alert",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "incident-alert",
+        "responseMode": "onReceived",
+        "responseData": "firstEntryJson",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        220,
+        300
+      ],
+      "id": "webhook-node",
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Write a WhatsApp alert for city responders, max 6 lines, no markdown: 🚨 Severity | Type — Location, 🧠 Cause (confidence %), 📊 signals count + types, 🏥 nearest hospital and fire station with km, ✅ one action. Use only this data:\n{{ JSON.stringify($json.body) }}",
+        "hasOutputParser": false
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        460,
+        300
+      ],
+      "id": "ai-agent-node",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-1.5-flash",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        460,
+        520
+      ],
+      "id": "gemini-model-node",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "gemini-creds-id",
+          "name": "Gemini API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const webhookData = $('Webhook').first().json;\nconst body = webhookData.body || webhookData;\nconst recipients = Array.isArray(body.recipients) && body.recipients.length > 0\n  ? body.recipients\n  : ['+917972253404', '+918261080711'];\n\nconst rawMessage = $json.output || $json.text || (typeof $json === 'string' ? $json : JSON.stringify($json));\nconst cleanMessage = String(rawMessage).trim();\n\nreturn recipients.map(phone => ({\n  json: {\n    to: String(phone).trim(),\n    message: cleanMessage\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        300
+      ],
+      "id": "code-split-recipients",
+      "name": "Split Recipients"
+    },
+    {
+      "parameters": {
+        "from": "+14155238886",
+        "to": "={{ $json.to }}",
+        "message": "={{ $json.message }}",
+        "toWhatsapp": true
+      },
+      "type": "n8n-nodes-base.twilio",
+      "typeVersion": 1,
+      "position": [
+        980,
+        300
+      ],
+      "id": "twilio-send-whatsapp",
+      "name": "Send WhatsApp Alert",
+      "credentials": {
+        "twilioApi": {
+          "id": "twilio-creds-id",
+          "name": "Twilio account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Split Recipients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Recipients": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -4,7 +4,8 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 
 import type { V1Incident, EarthquakeItem } from '../../api'
 import type { GoogleFloodGauge } from '../../types'
-import { formatCause } from '../../utils/formatters'
+import { CITIES } from '../../utils/cities'
+import { getVisiblePins } from './getVisiblePins'
 
 interface EarthMapProps {
   incidents: V1Incident[]
@@ -21,33 +22,10 @@ interface EarthMapProps {
   showFloodGauges?: boolean
   highlightedEventId?: string | null
   onSelectEvent?: (eventId: string) => void
-}
-
-function getEventMarkerDetails(type: string): { icon: string; bg: string; border: string } {
-  const t = (type || '').toLowerCase()
-  if (t.includes('water')) return { icon: '💧', bg: 'bg-cyan-950/95', border: 'border-cyan-400' }
-  if (t.includes('road')) return { icon: '🚗', bg: 'bg-amber-950/95', border: 'border-amber-400' }
-  if (t.includes('transit')) return { icon: '🚌', bg: 'bg-purple-950/95', border: 'border-purple-400' }
-  if (t.includes('call') || t.includes('emergency')) return { icon: '📞', bg: 'bg-rose-950/95', border: 'border-rose-400' }
-  if (t.includes('citizen')) return { icon: '👤', bg: 'bg-emerald-950/95', border: 'border-emerald-400' }
-  if (t.includes('weather') || t.includes('rain')) return { icon: '🌧', bg: 'bg-sky-950/95', border: 'border-sky-400' }
-  return { icon: '📡', bg: 'bg-slate-900/95', border: 'border-slate-400' }
-}
-
-// City coordinates & initial camera positions
-export const CITY_COORDINATES: Record<string, { center: [number, number]; zoom: number; pitch: number; bearing: number }> = {
-  mumbai: {
-    center: [72.8512, 19.0112],
-    zoom: 13.5,
-    pitch: 45,
-    bearing: -15,
-  },
-  'new york': {
-    center: [-73.9851, 40.7488],
-    zoom: 13.0,
-    pitch: 45,
-    bearing: 20,
-  },
+  eventsGeoJSON?: any
+  allIndiaStats?: any
+  onSelectCity?: (city: string) => void
+  tourIncident?: V1Incident | null
 }
 
 export const EarthMap: React.FC<EarthMapProps> = ({
@@ -63,17 +41,33 @@ export const EarthMap: React.FC<EarthMapProps> = ({
   showEarthquakes = false,
   floodGauges = [],
   showFloodGauges = false,
-  highlightedEventId,
   onSelectEvent,
+  eventsGeoJSON,
+  allIndiaStats,
+  onSelectCity,
+  tourIncident,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
-  const markersRef = useRef<maplibregl.Marker[]>([])
-  const eventMarkersRef = useRef<maplibregl.Marker[]>([])
   const earthquakeMarkersRef = useRef<maplibregl.Marker[]>([])
   const floodMarkersRef = useRef<maplibregl.Marker[]>([])
 
-  // 1. Initialize MapLibre with Globe Projection and Esri World Imagery
+  // Store mutable refs for event listeners
+  const activeCityRef = useRef<string>(activeCity)
+  const incidentsRef = useRef<V1Incident[]>(incidents)
+  const selectedIncidentRef = useRef<V1Incident | null>(selectedIncident)
+  const statsRef = useRef<any>(allIndiaStats)
+  const onSelectIncidentRef = useRef<(inc: V1Incident) => void>(onSelectIncident)
+  const onSelectCityRef = useRef<((city: string) => void) | undefined>(onSelectCity)
+
+  activeCityRef.current = activeCity
+  incidentsRef.current = incidents
+  selectedIncidentRef.current = selectedIncident
+  statsRef.current = allIndiaStats
+  onSelectIncidentRef.current = onSelectIncident
+  onSelectCityRef.current = onSelectCity
+
+  // 1. Initialize MapLibre
   useEffect(() => {
     if (!mapContainerRef.current) return
 
@@ -104,14 +98,13 @@ export const EarthMap: React.FC<EarthMapProps> = ({
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style,
-      center: [0, 20],
-      zoom: 1.5,
+      center: [79.0, 22.5],
+      zoom: 4.6,
       pitch: 0,
       bearing: 0,
       attributionControl: false,
     })
 
-    // Enable 3D Globe Projection
     try {
       map.setProjection({ type: 'globe' })
     } catch {
@@ -121,53 +114,335 @@ export const EarthMap: React.FC<EarthMapProps> = ({
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right')
 
     map.on('load', () => {
-      // Initial flight to Mumbai
-      setTimeout(() => {
-        const dest = CITY_COORDINATES['mumbai']
-        map.flyTo({
-          center: dest.center,
-          zoom: dest.zoom,
-          pitch: dest.pitch,
-          bearing: dest.bearing,
-          duration: 3500,
-          essential: true,
-        })
-      }, 800)
+      // Dashed outline icon for approximate locations
+      const size = 36
+      const canvas = document.createElement('canvas')
+      canvas.width = size
+      canvas.height = size
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.strokeStyle = '#ffffff'
+        ctx.lineWidth = 2
+        ctx.setLineDash([4, 3])
+        ctx.beginPath()
+        ctx.arc(size / 2, size / 2, 11, 0, Math.PI * 2)
+        ctx.stroke()
+        map.addImage('dashed-ring', ctx.getImageData(0, 0, size, size))
+      }
 
-      // Add line source for event-to-pin connections
-      map.addSource('pin-lines', {
+      // --- EVENTS GEOJSON SOURCE & LAYERS ---
+      map.addSource('events-geojson', {
         type: 'geojson',
-        data: { type: 'FeatureCollection', features: [] },
+        data: eventsGeoJSON || { type: 'FeatureCollection', features: [] },
+        cluster: true,
+        clusterMaxZoom: 13,
+        clusterRadius: 50,
       })
 
-      // Glowing outer line layer
+      // Heatmap layer (zoom 0 to 12)
       map.addLayer({
-        id: 'pin-lines-glow',
-        type: 'line',
-        source: 'pin-lines',
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        id: 'events-heat',
+        type: 'heatmap',
+        source: 'events-geojson',
+        maxzoom: 12,
         paint: {
-          'line-color': '#38bdf8',
-          'line-width': 5,
-          'line-opacity': 0.45,
-          'line-blur': 2,
+          'heatmap-weight': 1,
+          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 1, 12, 3],
+          'heatmap-color': [
+            'interpolate',
+            ['linear'],
+            ['heatmap-density'],
+            0, 'rgba(0, 0, 0, 0)',
+            0.2, 'rgba(6, 182, 212, 0.4)',
+            0.4, 'rgba(59, 130, 246, 0.65)',
+            0.6, 'rgba(234, 179, 8, 0.8)',
+            0.8, 'rgba(249, 115, 22, 0.9)',
+            1.0, 'rgba(239, 68, 68, 1)',
+          ],
+          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 4, 12, 25],
+          'heatmap-opacity': ['interpolate', ['linear'], ['zoom'], 7, 0.85, 12, 0],
         },
       })
 
-      // Crisp inner core line layer
+      // Cluster bubbles
       map.addLayer({
-        id: 'pin-lines-layer',
-        type: 'line',
-        source: 'pin-lines',
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        id: 'events-clusters',
+        type: 'circle',
+        source: 'events-geojson',
+        filter: ['has', 'point_count'],
         paint: {
-          'line-color': '#e0f2fe',
-          'line-width': 2,
-          'line-opacity': 0.95,
+          'circle-color': [
+            'step',
+            ['get', 'point_count'],
+            '#06b6d4',
+            20, '#3b82f6',
+            50, '#8b5cf6',
+            100, '#f97316',
+          ],
+          'circle-radius': [
+            'step',
+            ['get', 'point_count'],
+            16,
+            20, 20,
+            50, 25,
+            100, 32,
+          ],
+          'circle-opacity': 0.88,
+          'circle-stroke-width': 1.5,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-opacity': 0.95,
         },
       })
 
-      // Add rainfall layer source
+      map.addLayer({
+        id: 'events-cluster-count',
+        type: 'symbol',
+        source: 'events-geojson',
+        filter: ['has', 'point_count'],
+        layout: {
+          'text-field': '{point_count_abbreviated}',
+          'text-size': 11,
+        },
+        paint: {
+          'text-color': '#ffffff',
+        },
+      })
+
+      // Individual event dots (unclustered): colored by category
+      map.addLayer({
+        id: 'events-unclustered-dots',
+        type: 'circle',
+        source: 'events-geojson',
+        filter: ['!', ['has', 'point_count']],
+        paint: {
+          'circle-color': [
+            'case',
+            ['any', ['==', ['get', 'type'], 'water_level'], ['in', 'FLOOD', ['get', 'taxonomy_code']], ['in', 'WATER', ['get', 'taxonomy_code']]],
+            '#3b82f6', // blue flood
+            ['any', ['==', ['get', 'type'], 'road_sensor'], ['in', 'TRAFFIC', ['get', 'taxonomy_code']]],
+            '#f97316', // orange traffic
+            ['in', 'POWER', ['get', 'taxonomy_code']],
+            '#eab308', // yellow power
+            ['any', ['==', ['get', 'type'], 'transit'], ['in', 'TRANSIT', ['get', 'taxonomy_code']]],
+            '#a855f7', // purple transit
+            ['any', ['==', ['get', 'type'], 'emergency_call'], ['in', 'EMERGENCY', ['get', 'taxonomy_code']]],
+            '#ef4444', // red emergency
+            '#22c55e',
+          ],
+          'circle-radius': 6,
+          'circle-stroke-width': 1.5,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-opacity': 0.9,
+          'circle-opacity': 0.95,
+        },
+      })
+
+      // Dashed outline for events with location_approx
+      map.addLayer({
+        id: 'events-unclustered-approx',
+        type: 'symbol',
+        source: 'events-geojson',
+        filter: ['all', ['!', ['has', 'point_count']], ['==', ['get', 'location_approx'], true]],
+        layout: {
+          'icon-image': 'dashed-ring',
+          'icon-allow-overlap': true,
+          'icon-ignore-placement': true,
+          'icon-size': 0.9,
+        },
+      })
+
+      // Cluster click -> Zoom
+      map.on('click', 'events-clusters', async e => {
+        const features = map.queryRenderedFeatures(e.point, { layers: ['events-clusters'] })
+        const clusterId = features[0]?.properties?.cluster_id
+        const source = map.getSource('events-geojson') as maplibregl.GeoJSONSource
+        if (source && clusterId !== undefined) {
+          try {
+            const zoom = await source.getClusterExpansionZoom(clusterId)
+            const geom = features[0].geometry as any
+            map.easeTo({
+              center: geom.coordinates,
+              zoom: zoom ?? 12,
+              duration: 600,
+            })
+          } catch {
+            // ignore
+          }
+        }
+      })
+
+      // Event dot click
+      map.on('click', 'events-unclustered-dots', e => {
+        const f = e.features?.[0]
+        if (!f) return
+        const geom = f.geometry as any
+        const p = f.properties || {}
+        const eid = p.id || ''
+        if (onSelectEvent) onSelectEvent(eid)
+
+        new maplibregl.Popup({ className: 'custom-map-popup', offset: 12 })
+          .setLngLat(geom.coordinates)
+          .setHTML(`
+            <div style="font-family: sans-serif; font-size: 11px; padding: 6px; color: #e6e8eb; background: rgba(12,16,24,0.92); border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); max-width: 220px;">
+              <div style="font-weight: 600; color: #22d3ee;">${p.id}</div>
+              <div style="margin-top: 3px; font-weight: 500; color: #e6e8eb;">${p.taxonomy_code}</div>
+              <div style="margin-top: 4px; display: flex; gap: 4px; flex-wrap: wrap;">
+                <span style="background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px; font-size: 10px;">${p.type}</span>
+                <span style="background: ${p.is_synthetic ? 'rgba(168,85,247,0.2)' : 'rgba(34,197,94,0.2)'}; color: ${p.is_synthetic ? '#c084fc' : '#22c55e'}; padding: 1px 5px; border-radius: 4px; font-size: 10px; font-weight: 500;">${p.is_synthetic ? 'SYNTHETIC' : 'REAL ✓'}</span>
+                ${p.location_approx ? '<span style="background: rgba(245,158,11,0.2); color: #f59e0b; padding: 1px 5px; border-radius: 4px; font-size: 10px;">Approx Coord</span>' : ''}
+              </div>
+              <div style="margin-top: 4px; color: #8b93a1; font-size: 10px;">${p.time || ''}</div>
+            </div>
+          `)
+          .addTo(map)
+      })
+
+      // --- REQUIREMENT 1: SINGLE SOURCE OF TRUTH PINS GEOJSON SOURCE & LAYERS ---
+      const initialPinData = getVisiblePins(
+        activeCityRef.current,
+        map.getZoom(),
+        incidentsRef.current,
+        selectedIncidentRef.current?.incident_id,
+        statsRef.current
+      )
+
+      map.addSource('pins-source', {
+        type: 'geojson',
+        data: initialPinData,
+      })
+
+      // 1. City Bubbles circle layer (Zoom < 5)
+      map.addLayer({
+        id: 'pins-city-bubbles',
+        type: 'circle',
+        source: 'pins-source',
+        filter: ['==', ['get', 'kind'], 'city_bubble'],
+        paint: {
+          'circle-color': ['get', 'color'],
+          'circle-radius': ['get', 'radius'],
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 1.5,
+          'circle-opacity': 0.88,
+        },
+      })
+
+      // 2. City Bubbles label layer
+      map.addLayer({
+        id: 'pins-city-bubbles-label',
+        type: 'symbol',
+        source: 'pins-source',
+        filter: ['==', ['get', 'kind'], 'city_bubble'],
+        layout: {
+          'text-field': ['get', 'label'],
+          'text-size': 11,
+          'text-allow-overlap': true,
+        },
+        paint: {
+          'text-color': '#ffffff',
+          'text-halo-color': '#0c1018',
+          'text-halo-width': 1.5,
+        },
+      })
+
+      // 3. Small 5px dots (all other incidents of that city)
+      map.addLayer({
+        id: 'pins-dots',
+        type: 'circle',
+        source: 'pins-source',
+        filter: ['==', ['get', 'kind'], 'dot'],
+        paint: {
+          'circle-color': ['get', 'color'],
+          'circle-radius': 5,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 1,
+          'circle-opacity': 0.85,
+        },
+      })
+
+      // 4. Full incident pins (top 4 in All India, top 10 in City)
+      map.addLayer({
+        id: 'pins-full',
+        type: 'circle',
+        source: 'pins-source',
+        filter: ['==', ['get', 'kind'], 'pin'],
+        paint: {
+          'circle-color': ['get', 'color'],
+          'circle-radius': ['get', 'radius'],
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 1.5,
+          'circle-opacity': 0.95,
+        },
+      })
+
+      // 5. Selected pin glow ring
+      map.addLayer({
+        id: 'pins-selected-glow',
+        type: 'circle',
+        source: 'pins-source',
+        filter: ['all', ['==', ['get', 'kind'], 'pin'], ['==', ['get', 'is_selected'], true]],
+        paint: {
+          'circle-radius': 13,
+          'circle-color': '#22d3ee',
+          'circle-opacity': 0.35,
+          'circle-stroke-color': '#22d3ee',
+          'circle-stroke-width': 2,
+        },
+      })
+
+      // 6. Label layer: text-allow-overlap false, symbol-sort-key = -severity_score
+      map.addLayer({
+        id: 'pins-labels',
+        type: 'symbol',
+        source: 'pins-source',
+        filter: ['all', ['!=', ['get', 'kind'], 'city_bubble'], ['!=', ['get', 'label'], '']],
+        layout: {
+          'text-field': ['get', 'label'],
+          'symbol-sort-key': ['-', 0, ['coalesce', ['get', 'severity_score'], 0]],
+          'text-allow-overlap': false,
+          'text-ignore-placement': false,
+          'text-size': 11,
+          'text-offset': [1.3, 0], // 18px offset right
+          'text-anchor': 'left',
+        },
+        paint: {
+          'text-color': '#e6e8eb',
+          'text-halo-color': '#0c1018',
+          'text-halo-width': 1.5,
+        },
+      })
+
+      // Click on City Bubble -> Fly to city
+      map.on('click', 'pins-city-bubbles', e => {
+        const feat = e.features?.[0]
+        const cityId = feat?.properties?.city_id
+        if (cityId && onSelectCityRef.current) {
+          onSelectCityRef.current(cityId)
+        }
+      })
+
+      // Click on full pin or small dot -> select incident
+      const handlePinClick = (e: any) => {
+        const feat = e.features?.[0]
+        const incId = feat?.properties?.incident_id
+        if (incId) {
+          const match = incidentsRef.current.find(i => i.incident_id === incId)
+          if (match && onSelectIncidentRef.current) {
+            onSelectIncidentRef.current(match)
+          }
+        }
+      }
+
+      map.on('click', 'pins-full', handlePinClick)
+      map.on('click', 'pins-dots', handlePinClick)
+
+      map.on('mouseenter', 'pins-city-bubbles', () => { map.getCanvas().style.cursor = 'pointer' })
+      map.on('mouseleave', 'pins-city-bubbles', () => { map.getCanvas().style.cursor = '' })
+      map.on('mouseenter', 'pins-full', () => { map.getCanvas().style.cursor = 'pointer' })
+      map.on('mouseleave', 'pins-full', () => { map.getCanvas().style.cursor = '' })
+      map.on('mouseenter', 'pins-dots', () => { map.getCanvas().style.cursor = 'pointer' })
+      map.on('mouseleave', 'pins-dots', () => { map.getCanvas().style.cursor = '' })
+
+      // Rainfall GeoJSON
       map.addSource('rainfall-source', {
         type: 'geojson',
         data: { type: 'FeatureCollection', features: [] },
@@ -182,11 +457,30 @@ export const EarthMap: React.FC<EarthMapProps> = ({
           'circle-radius': ['interpolate', ['linear'], ['get', 'rain_mm'], 0, 10, 50, 25, 100, 45],
           'circle-color': '#06b6d4',
           'circle-opacity': 0.45,
-          'circle-stroke-width': 2,
+          'circle-stroke-width': 1.5,
           'circle-stroke-color': '#22d3ee',
         },
       })
     })
+
+    // Zoom and moveend listener: update visible pins (e.g. city bubbles disappear at zoom 5, dot labels appear at zoom 15)
+    const handleMapMovement = () => {
+      const source = map.getSource('pins-source') as maplibregl.GeoJSONSource | undefined
+      if (source) {
+        source.setData(
+          getVisiblePins(
+            activeCityRef.current,
+            map.getZoom(),
+            incidentsRef.current,
+            selectedIncidentRef.current?.incident_id,
+            statsRef.current
+          )
+        )
+      }
+    }
+
+    map.on('zoom', handleMapMovement)
+    map.on('moveend', handleMapMovement)
 
     mapRef.current = map
 
@@ -195,159 +489,98 @@ export const EarthMap: React.FC<EarthMapProps> = ({
     }
   }, [])
 
-  // 2. Fly to active city
+  // 2. Camera Flight when view changes
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
 
-    const key = activeCity.toLowerCase()
-    const target = CITY_COORDINATES[key] || CITY_COORDINATES['mumbai']
+    const norm = activeCity.toLowerCase().trim()
+    const isAll = norm === 'all' || norm === 'all-india' || norm === 'all india'
 
-    map.flyTo({
-      center: target.center,
-      zoom: target.zoom,
-      pitch: target.pitch,
-      bearing: target.bearing,
-      duration: 2500,
-      essential: true,
-    })
-  }, [activeCity])
-
-  // 3. Render Incident Pins
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map) return
-
-    markersRef.current.forEach(m => m.remove())
-    markersRef.current = []
-
-    incidents.forEach(inc => {
-      const lat = inc.centroid_lat
-      const lon = inc.centroid_lon
-      if (!lat || !lon) return
-
-      const isSelected = selectedIncident?.incident_id === inc.incident_id
-      const sev = (inc.severity_level || 'Medium').toLowerCase()
-
-      const color = sev === 'high' ? '#ef4444' : sev === 'medium' ? '#f59e0b' : '#eab308'
-      const pulseColor = sev === 'high' ? 'rgba(239, 68, 68, 0.4)' : sev === 'medium' ? 'rgba(245, 158, 11, 0.4)' : 'rgba(234, 179, 8, 0.4)'
-
-      const el = document.createElement('div')
-      el.className = 'cursor-pointer group flex flex-col items-center select-none'
-      el.innerHTML = `
-        <div class="relative flex items-center justify-center">
-          <div class="absolute -inset-2 rounded-full animate-ping opacity-75" style="background-color: ${pulseColor};"></div>
-          <div class="relative w-7 h-7 rounded-full border-2 border-white flex items-center justify-center shadow-lg transition-transform duration-200 group-hover:scale-125 ${isSelected ? 'scale-125 ring-4 ring-cyan-400' : ''}" style="background-color: ${color};">
-            <span class="text-white text-[10px] font-black tracking-tight">${inc.incident_id.replace('INCIDENT-', '')}</span>
-          </div>
-        </div>
-        <div class="mt-1 px-2 py-0.5 rounded-full bg-slate-950/90 border border-white/20 text-white text-[10px] font-semibold whitespace-nowrap shadow-md backdrop-blur-sm pointer-events-none group-hover:opacity-100 opacity-90 transition-opacity">
-          ${formatCause(inc.primary_cause)}
-        </div>
-      `
-
-      el.addEventListener('click', () => {
-        onSelectIncident(inc)
+    if (isAll) {
+      map.flyTo({
+        center: [79.0, 22.5],
+        zoom: 4.6,
+        pitch: 0,
+        bearing: 0,
+        duration: 2000,
+        essential: true,
+      })
+    } else {
+      const cityConfig = CITIES[norm]
+      if (cityConfig) {
         map.flyTo({
-          center: [lon, lat],
-          zoom: 15.5,
+          center: [cityConfig.lon, cityConfig.lat],
+          zoom: 11, // Requirement 2: zoom 11, pitch 45
           pitch: 45,
-          duration: 1800,
+          duration: 2000,
           essential: true,
         })
-      })
+      }
+    }
+  }, [activeCity])
 
-      const marker = new maplibregl.Marker({ element: el })
-        .setLngLat([lon, lat])
-        .addTo(map)
-
-      markersRef.current.push(marker)
-    })
-  }, [incidents, selectedIncident, onSelectIncident])
-
-  // 4. Render Event Icon Nodes & Glowing Line to Incident Pin
+  // 3. Re-set GeoJSON source data whenever view, incidents, or selection changes
+  // (Ensures All India pins render on first load and when switching back from a city)
   useEffect(() => {
     const map = mapRef.current
-    if (!map) return
+    if (!map || !map.isStyleLoaded()) return
 
-    eventMarkersRef.current.forEach(m => m.remove())
-    eventMarkersRef.current = []
-
-    const lineSource = map.getSource('pin-lines') as maplibregl.GeoJSONSource | undefined
-
-    if (!selectedIncident || !selectedIncident.events || selectedIncident.events.length === 0) {
-      if (lineSource) lineSource.setData({ type: 'FeatureCollection', features: [] })
-      return
+    const source = map.getSource('pins-source') as maplibregl.GeoJSONSource | undefined
+    if (source) {
+      const data = getVisiblePins(
+        activeCity,
+        map.getZoom(),
+        incidents,
+        selectedIncident?.incident_id,
+        allIndiaStats
+      )
+      source.setData(data)
     }
+  }, [activeCity, incidents, selectedIncident, allIndiaStats])
 
-    const pinLon = selectedIncident.centroid_lon
-    const pinLat = selectedIncident.centroid_lat
-    const lineFeatures: any[] = []
+  // 4. Update events GeoJSON
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !map.isStyleLoaded()) return
 
-    selectedIncident.events.forEach((evt: any, idx: number) => {
-      const eid = String(evt.id || evt.event_id || `E${idx}`)
-      let evtLat = evt.lat
-      let evtLon = evt.lon
+    const source = map.getSource('events-geojson') as maplibregl.GeoJSONSource | undefined
+    if (source && eventsGeoJSON) {
+      source.setData(eventsGeoJSON)
+    }
+  }, [eventsGeoJSON])
 
-      // Disperse slightly if coordinates overlap with incident centroid
-      if (!evtLat || !evtLon || (evtLat === pinLat && evtLon === pinLon)) {
-        const angle = (idx * (360 / selectedIncident.events!.length)) * (Math.PI / 180)
-        const radius = 0.003
-        evtLat = pinLat + Math.sin(angle) * radius
-        evtLon = pinLon + Math.cos(angle) * radius
-      }
+  // 5. Tour camera control
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !tourIncident) return
 
-      // Add connecting line for glow effect
-      lineFeatures.push({
-        type: 'Feature',
-        geometry: {
-          type: 'LineString',
-          coordinates: [
-            [pinLon, pinLat],
-            [evtLon, evtLat],
-          ],
-        },
-      })
+    const lat = tourIncident.centroid_lat
+    const lon = tourIncident.centroid_lon
+    if (!lat || !lon) return
 
-      // Event icon marker
-      const { icon, bg, border } = getEventMarkerDetails(evt.type || evt.source_type)
-      const isHighlighted = highlightedEventId === eid
-
-      const el = document.createElement('div')
-      el.className = 'flex flex-col items-center select-none group cursor-pointer'
-      el.innerHTML = `
-        <div class="w-6 h-6 rounded-full ${bg} border ${border} flex items-center justify-center text-xs shadow-lg transition-all duration-200 group-hover:scale-125 ${
-          isHighlighted ? 'ring-4 ring-cyan-400 scale-125 shadow-cyan-400/80 shadow-xl' : ''
-        }">
-          ${icon}
-        </div>
-        <div class="mt-0.5 px-1.5 py-0.2 rounded bg-slate-950/90 text-[9px] font-mono text-cyan-200 border border-cyan-500/40 whitespace-nowrap shadow-md opacity-0 group-hover:opacity-100 transition-opacity">
-          ${eid}
-        </div>
-      `
-
-      // Clicking a node highlights it in the Evidence tab
-      el.addEventListener('click', (e) => {
-        e.stopPropagation()
-        onSelectEvent?.(eid)
-      })
-
-      const marker = new maplibregl.Marker({ element: el })
-        .setLngLat([evtLon, evtLat])
-        .addTo(map)
-
-      eventMarkersRef.current.push(marker)
+    map.flyTo({
+      center: [lon, lat],
+      zoom: 15,
+      pitch: 50,
+      duration: 1500,
+      essential: true,
     })
 
-    if (lineSource) {
-      lineSource.setData({
-        type: 'FeatureCollection',
-        features: lineFeatures,
-      })
-    }
-  }, [selectedIncident, highlightedEventId, onSelectEvent])
+    const rotateTimer = setTimeout(() => {
+      if (map) {
+        map.easeTo({
+          bearing: map.getBearing() + 12,
+          duration: 3800,
+          easing: t => t,
+        })
+      }
+    }, 1500)
 
-  // 5. Toggle Rainfall Layer
+    return () => clearTimeout(rotateTimer)
+  }, [tourIncident])
+
+  // 6. Rainfall Layer
   useEffect(() => {
     const map = mapRef.current
     if (!map || !map.isStyleLoaded()) return
@@ -362,37 +595,7 @@ export const EarthMap: React.FC<EarthMapProps> = ({
     }
   }, [showRainfall, rainfallData])
 
-  // 6. Toggle Infrastructure Markers
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map) return
-
-    const infraMarkers: maplibregl.Marker[] = []
-
-    if (showInfrastructure && infrastructureData?.features) {
-      infrastructureData.features.forEach((feat: any) => {
-        const [lon, lat] = feat.geometry.coordinates
-        const type = feat.properties.type
-
-        const el = document.createElement('div')
-        const icon = type === 'hospital' ? '🏥' : type === 'fire_station' ? '🚒' : '🚉'
-        el.className = 'w-5 h-5 rounded-full bg-slate-900/80 border border-emerald-400 flex items-center justify-center text-[10px] shadow'
-        el.title = `${feat.properties.name} (${type})`
-        el.innerText = icon
-
-        const marker = new maplibregl.Marker({ element: el })
-          .setLngLat([lon, lat])
-          .addTo(map)
-        infraMarkers.push(marker)
-      })
-    }
-
-    return () => {
-      infraMarkers.forEach(m => m.remove())
-    }
-  }, [showInfrastructure, infrastructureData])
-
-  // 7. Render USGS Earthquakes as Pulsing Circles Sized by Magnitude
+  // 7. Earthquakes Markers
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
@@ -409,20 +612,20 @@ export const EarthMap: React.FC<EarthMapProps> = ({
         const mag = eq.payload?.magnitude || 3.0
         const place = eq.payload?.place || 'Regional epicentre'
         const depth = eq.payload?.depth_km || 10
-        const diameterPx = Math.max(18, Math.min(64, Math.round(mag * 8)))
+        const diameterPx = Math.max(16, Math.min(50, Math.round(mag * 7)))
         const isSevere = mag >= 4.5
 
         const el = document.createElement('div')
         el.className = 'relative flex items-center justify-center cursor-pointer group select-none'
         el.innerHTML = `
-          <div class="absolute rounded-full animate-ping opacity-60" style="width: ${diameterPx + 16}px; height: ${diameterPx + 16}px; background-color: ${isSevere ? '#ef4444' : '#f97316'};"></div>
-          <div class="rounded-full border-2 border-white flex items-center justify-center font-black text-white shadow-xl transition-transform group-hover:scale-125" style="width: ${diameterPx}px; height: ${diameterPx}px; background-color: ${isSevere ? '#dc2626' : '#ea580c'}; font-size: ${Math.max(9, Math.min(13, Math.round(mag * 2.2)))}px;">
+          <div class="absolute rounded-full animate-ping opacity-50" style="width: ${diameterPx + 12}px; height: ${diameterPx + 12}px; background-color: ${isSevere ? '#ef4444' : '#f97316'};"></div>
+          <div class="rounded-full border border-white flex items-center justify-center font-bold text-white shadow-xl" style="width: ${diameterPx}px; height: ${diameterPx}px; background-color: ${isSevere ? '#dc2626' : '#ea580c'}; font-size: ${Math.max(9, Math.min(12, Math.round(mag * 2)))}px;">
             M${mag.toFixed(1)}
           </div>
-          <div class="absolute bottom-full mb-1 px-2 py-1 rounded-lg bg-slate-950/95 border border-white/20 text-white text-[10px] whitespace-nowrap shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
-            <div class="font-bold text-orange-400">🌋 Magnitude ${mag.toFixed(1)}</div>
-            <div class="text-slate-300">${place}</div>
-            <div class="text-slate-400 font-mono text-[9px]">Depth: ${depth} km</div>
+          <div class="absolute bottom-full mb-1 px-2 py-1 rounded-lg bg-[rgba(12,16,24,0.95)] border border-[rgba(255,255,255,0.1)] text-[#e6e8eb] text-[10px] whitespace-nowrap shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50">
+            <div class="font-semibold text-orange-400">Magnitude ${mag.toFixed(1)}</div>
+            <div class="text-[#8b93a1]">${place}</div>
+            <div class="text-[#8b93a1] text-[9px]">Depth: ${depth} km</div>
           </div>
         `
 
@@ -440,7 +643,7 @@ export const EarthMap: React.FC<EarthMapProps> = ({
     }
   }, [showEarthquakes, earthquakes])
 
-  // 8. Render Google Flood Hub Gauges as Globe Pins
+  // 8. Flood Gauges
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
@@ -456,13 +659,13 @@ export const EarthMap: React.FC<EarthMapProps> = ({
 
         const el = document.createElement('div')
         el.className = 'relative flex flex-col items-center cursor-pointer group select-none'
-        const sevColor = gauge.severity === 'red' ? '#ef4444' : gauge.severity === 'amber' ? '#f59e0b' : '#10b981'
+        const sevColor = gauge.severity === 'red' ? '#ef4444' : gauge.severity === 'amber' ? '#f59e0b' : '#22c55e'
 
         el.innerHTML = `
-          <div class="w-6 h-6 rounded-full border-2 border-white flex items-center justify-center shadow-lg text-white text-xs transition-transform group-hover:scale-125" style="background-color: ${sevColor};">
-            🌊
+          <div class="w-4 h-4 rounded-full border border-white flex items-center justify-center shadow-lg text-white text-[8px] font-bold" style="background-color: ${sevColor};">
+            W
           </div>
-          <div class="mt-0.5 px-2 py-0.5 rounded-full bg-slate-950/90 border border-white/20 text-white text-[9px] font-semibold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+          <div class="mt-0.5 px-2 py-0.5 rounded-md bg-[rgba(12,16,24,0.92)] border border-[rgba(255,255,255,0.1)] text-[#e6e8eb] text-[9px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
             ${gauge.name} (${gauge.river})
           </div>
         `
@@ -482,7 +685,7 @@ export const EarthMap: React.FC<EarthMapProps> = ({
   }, [showFloodGauges, floodGauges])
 
   return (
-    <div className="relative w-full h-full bg-black overflow-hidden">
+    <div className="absolute inset-0 w-full h-full">
       <div ref={mapContainerRef} className="w-full h-full" />
     </div>
   )

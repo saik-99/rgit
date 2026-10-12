@@ -514,8 +514,11 @@ export interface V1Incident {
   relationships?: any[]
   explanation?: string
   events?: any[]
+  is_synthetic?: boolean
+  status?: string
   created_at: string
   updated_at: string
+  alert_sent_at?: string
 }
 
 export const MOCK_V1_INCIDENTS: V1Incident[] = [
@@ -716,14 +719,71 @@ export const MOCK_V1_INCIDENTS: V1Incident[] = [
   },
 ]
 
-export async function fetchV1Cities(): Promise<string[]> {
+export interface V1CityItem {
+  city: string
+  name: string
+  lat: number
+  lon: number
+  incident_count: number
+  high_count: number
+}
+
+export async function fetchV1Cities(): Promise<V1CityItem[]> {
   try {
     const res = await fetch(`${API_BASE}/v1/cities`)
     if (!res.ok) throw new Error('Failed to fetch v1 cities')
     return await res.json()
   } catch (err) {
     console.warn('Backend unavailable, using fallback v1 cities:', err)
-    return ['Mumbai', 'New York']
+    return [
+      { city: 'mumbai', name: 'Mumbai', lat: 19.121742, lon: 72.862475, incident_count: 191, high_count: 48 },
+      { city: 'pune', name: 'Pune', lat: 18.510793, lon: 73.854980, incident_count: 159, high_count: 29 },
+      { city: 'nagpur', name: 'Nagpur', lat: 21.146703, lon: 79.086895, incident_count: 223, high_count: 40 },
+      { city: 'delhi', name: 'Delhi', lat: 28.609941, lon: 77.221817, incident_count: 180, high_count: 34 },
+      { city: 'bengaluru', name: 'Bengaluru', lat: 12.970724, lon: 77.597094, incident_count: 179, high_count: 37 },
+      { city: 'hyderabad', name: 'Hyderabad', lat: 17.380345, lon: 78.491224, incident_count: 197, high_count: 27 },
+      { city: 'guwahati', name: 'Guwahati', lat: 26.137415, lon: 91.744432, incident_count: 198, high_count: 31 },
+    ]
+  }
+}
+
+export async function fetchV1EventsGeoJSON(params?: { city?: string; from?: string; to?: string }): Promise<any> {
+  try {
+    const q = new URLSearchParams()
+    if (params?.city && params.city !== 'all') q.set('city', params.city)
+    if (params?.from) q.set('from', params.from)
+    if (params?.to) q.set('to', params.to)
+    const url = `${API_BASE}/v1/events/geojson${q.toString() ? `?${q.toString()}` : ''}`
+    const res = await fetch(url)
+    if (!res.ok) throw new Error('Failed to fetch events geojson')
+    return await res.json()
+  } catch (err) {
+    console.warn('Backend unavailable, using fallback geojson:', err)
+    return { type: 'FeatureCollection', features: [] }
+  }
+}
+
+export async function fetchV1Stats(): Promise<any> {
+  try {
+    const res = await fetch(`${API_BASE}/v1/stats`)
+    if (!res.ok) throw new Error('Failed to fetch v1 stats')
+    return await res.json()
+  } catch (err) {
+    console.warn('Backend unavailable, using fallback v1 stats:', err)
+    return {
+      total_events: 3218,
+      total_incidents: 1327,
+      by_city: {
+        mumbai: { total_events: 574, incidents: 191, real: 24, synthetic: 550 },
+        pune: { total_events: 390, incidents: 159, real: 16, synthetic: 374 },
+        nagpur: { total_events: 483, incidents: 223, real: 21, synthetic: 462 },
+        delhi: { total_events: 426, incidents: 180, real: 20, synthetic: 406 },
+        bengaluru: { total_events: 438, incidents: 179, real: 22, synthetic: 416 },
+        hyderabad: { total_events: 445, incidents: 197, real: 20, synthetic: 425 },
+        guwahati: { total_events: 462, incidents: 198, real: 21, synthetic: 441 },
+      },
+      real_vs_synthetic: { real: 144, synthetic: 3074 },
+    }
   }
 }
 
@@ -919,4 +979,48 @@ export async function postV1Event(event: any): Promise<any> {
     return { status: 'ok', event, incident: MOCK_V1_INCIDENTS[0] }
   }
 }
+
+export async function fetchAlertRecipients(): Promise<string[]> {
+  try {
+    const res = await fetch(`${API_BASE}/v1/alert-recipients`)
+    if (!res.ok) throw new Error('Failed to fetch recipients')
+    const data = await res.json()
+    return data.recipients || []
+  } catch (err) {
+    return ['+917972253404', '+918261080711']
+  }
+}
+
+export async function updateAlertRecipients(recipients: string[]): Promise<string[]> {
+  try {
+    const res = await fetch(`${API_BASE}/v1/alert-recipients`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipients }),
+    })
+    if (!res.ok) throw new Error('Failed to update recipients')
+    const data = await res.json()
+    return data.recipients || recipients
+  } catch (err) {
+    return recipients
+  }
+}
+
+export async function sendIncidentAlert(
+  incidentId: string,
+  recipients?: string[]
+): Promise<{ status: string; sent: boolean; alert_sent_at?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/v1/incidents/${incidentId}/alert`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipients }),
+    })
+    if (!res.ok) throw new Error('Alert failed')
+    return await res.json()
+  } catch (err) {
+    return { status: 'offline', sent: false }
+  }
+}
+
 
