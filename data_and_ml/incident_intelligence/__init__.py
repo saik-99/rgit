@@ -9,6 +9,9 @@ Exports:
 - cluster_events_spatiotemporal
 - infer_probable_cause
 - compute_severity_and_priority
+- IngestionGate          (SHA-256 cybersecurity boundary gate)
+- GateResult
+- compute_sha256
 """
 
 from .models import NormalizedEvent, EvidenceRelationship, IncidentReport
@@ -19,6 +22,7 @@ from .causal_engine import infer_probable_cause, build_evidence_relationships, I
 from .severity import compute_severity_and_priority, compute_data_completeness
 from .explainer import generate_operator_briefing
 from .engine import IncidentIntelligenceEngine, analyze_events, build_evidence_graph
+from .ingestion_gate import IngestionGate, GateResult, compute_sha256, SignatureRegistry
 
 __all__ = [
     "IncidentIntelligenceEngine",
@@ -35,5 +39,10 @@ __all__ = [
     "NormalizedEvent",
     "EvidenceRelationship",
     "IncidentReport",
-    "INCIDENT_TAXONOMY"
+    "INCIDENT_TAXONOMY",
+    # SHA-256 Ingestion Gate
+    "IngestionGate",
+    "GateResult",
+    "SignatureRegistry",
+    "compute_sha256",
 ]

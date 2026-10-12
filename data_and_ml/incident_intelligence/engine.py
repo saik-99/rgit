@@ -6,6 +6,7 @@ Importable by backend routes and AI agent workflows.
 """
 
 import datetime
+import logging
 from typing import List, Dict, Any, Optional
 from .models import NormalizedEvent, IncidentReport, EvidenceRelationship
 from .normalization import normalize_event
@@ -14,6 +15,9 @@ from .clustering import cluster_events_spatiotemporal, compute_cluster_centroid
 from .causal_engine import infer_probable_cause, build_evidence_relationships
 from .severity import compute_severity_and_priority
 from .explainer import generate_operator_briefing
+from .ingestion_gate import IngestionGate, GateResult
+
+logger = logging.getLogger(__name__)
 
 
 class IncidentIntelligenceEngine:
@@ -24,9 +28,16 @@ class IncidentIntelligenceEngine:
         reports = engine.analyze_events(raw_events, weather_context)
     """
 
-    def __init__(self, spatial_radius_m: float = 800.0, time_window_sec: float = 1800.0):
+    def __init__(
+        self,
+        spatial_radius_m: float = 800.0,
+        time_window_sec: float = 1800.0,
+        gate_mode: str = "permissive",
+    ):
         self.spatial_radius_m = spatial_radius_m
-        self.time_window_sec = time_window_sec
+        self.time_window_sec  = time_window_sec
+        # SHA-256 Ingestion Gate — cybersecurity boundary layer
+        self.gate = IngestionGate(mode=gate_mode)
 
     def analyze_events(
         self,
@@ -35,13 +46,58 @@ class IncidentIntelligenceEngine:
     ) -> List[IncidentReport]:
         """
         Processes a collection of streaming or batch events through the intelligence pipeline.
-        Returns a list of structured IncidentReports with DAG relationships and explanations.
+
+        Pipeline stages:
+          0. SHA-256 Ingestion Gate   — verify / reject tampered records
+          1. Normalization            — canonical NormalizedEvent objects
+          2. Deduplication            — mark duplicate evidence
+          3. Spatiotemporal Clustering
+          4. Causal Inference
+          5. Severity & Priority Scoring
+          6. Evidence Graph & Relationships
+          7. Operational Explanation
+
+        Returns a list of structured IncidentReports.
         """
         if not raw_events:
             return []
 
-        # 1. Normalization & validation
-        normalized = [normalize_event(r) for r in raw_events]
+        # ── STEP 0: SHA-256 Ingestion Gate ─────────────────────────────
+        # Every raw record is screened before any AI processing.
+        # Tampered / spoof-flagged records are silently quarantined here.
+        admitted, admitted_results, rejected = self.gate.screen_batch(raw_events)
+        if rejected:
+            spoof = [r for r in rejected if r.is_spoof_flagged]
+            logger.warning(
+                "GATE: %d record(s) rejected before AI engine (%d spoof flags). "
+                "Rejected IDs: %s",
+                len(rejected), len(spoof),
+                [r.record_id for r in rejected],
+            )
+        logger.info("GATE summary: %s", self.gate.summary())
+
+        if not admitted:
+            logger.error("GATE: all records rejected — no data admitted to AI engine.")
+            return []
+
+        # Build a trust override map from gate decisions
+        gate_trust: Dict[str, float] = {
+            r.record_id: r.trust_score for r in admitted_results
+        }
+
+        # ── STEP 1: Normalization & validation ─────────────────────────
+        normalized: List[NormalizedEvent] = []
+        for raw in admitted:
+            ev = normalize_event(raw)
+            # Override trust with gate-derived score (gate is authoritative)
+            rec_id = str(
+                (raw.get("event_id") or raw.get("id") or raw.get("unique_key") or "")
+                if isinstance(raw, dict) else getattr(raw, "event_id", "")
+            )
+            if rec_id in gate_trust:
+                ev.trust = gate_trust[rec_id]
+            ev.signature_verified = (gate_trust.get(rec_id, 0.5) == 1.0)
+            normalized.append(ev)
 
         # 2. Deduplication (marks duplicate events while preserving original evidence)
         unique_events, duplicate_events = deduplicate_events(normalized)
