@@ -7,8 +7,28 @@ strictly validated NormalizedEvent instances without discarding data.
 import datetime
 import json
 import re
-from typing import Any, Optional
+import csv
+from pathlib import Path
+from typing import Any, Optional, Dict
 from .models import NormalizedEvent
+
+# Load evidence registry from datasets/evidence.csv
+_EVIDENCE_LOOKUP: Dict[str, Dict[str, str]] = {}
+try:
+    _ev_path = Path(__file__).resolve().parents[1] / "datasets" / "evidence.csv"
+    if _ev_path.exists():
+        with open(_ev_path, mode="r", encoding="utf-8") as _f:
+            _reader = csv.DictReader(_f)
+            for _row in _reader:
+                _eid = _row.get("event_id")
+                if _eid:
+                    _EVIDENCE_LOOKUP[_eid] = {
+                        "source_name": _row.get("source_name", ""),
+                        "source_url": _row.get("source_url", "")
+                    }
+except Exception:
+    pass
+
 
 
 def parse_timestamp(val: Any) -> Optional[datetime.datetime]:
@@ -120,6 +140,10 @@ def normalize_event(raw: Any) -> NormalizedEvent:
     is_synth = bool(get_attr("is_synthetic", False))
     data_type = str(get_attr("data_type") or ("model_weather" if source_type == "weather" else "direct_observation" if "sensor" in source_type or "water" in source_type else "reported_incident"))
 
+    ev_info = _EVIDENCE_LOOKUP.get(event_id, {})
+    src_url = get_attr("source_url") or ev_info.get("source_url") or get_attr("source_reference")
+    src_name = get_attr("source_name") or ev_info.get("source_name") or get_attr("source_reference")
+
     return NormalizedEvent(
         event_id=event_id,
         source_type=source_type,
@@ -136,5 +160,7 @@ def normalize_event(raw: Any) -> NormalizedEvent:
         location_name=loc_name,
         is_synthetic=is_synth,
         data_type=data_type,
-        source_url=get_attr("source_url") or get_attr("source_reference")
+        source_url=src_url,
+        source_name=src_name
     )
+

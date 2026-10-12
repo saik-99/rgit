@@ -3,6 +3,8 @@ import type {
   GoogleFloodResponse, WindyConfig, DataSourceItem
 } from './types'
 
+export type { EarthquakeItem, GoogleFloodResponse, WindyConfig, DataSourceItem, WeatherMetrics }
+
 const API_BASE = '/api'
 
 export const MOCK_INCIDENTS: Incident[] = [
@@ -280,7 +282,22 @@ export async function fetchSources(): Promise<SourceItem[]> {
   }
 }
 
-export async function fetchWeather(): Promise<WeatherMetrics> {
+export async function fetchWeather(city?: string): Promise<WeatherMetrics> {
+  if (city && city.toLowerCase().includes('new york')) {
+    return {
+      location: 'New York (Central Park)',
+      lat: 40.7829,
+      lon: -73.9654,
+      current_precip_mm: 3.2,
+      rain_intensity: 'Light Showers',
+      past_24h_rainfall_mm: 14.8,
+      river_discharge_m3s: 5.2,
+      flood_risk_level: 'Low',
+      advisory: 'Conditions normal across metropolitan sectors.',
+      timestamp: new Date().toISOString(),
+    }
+  }
+
   try {
     const res = await fetch(`${API_BASE}/weather/hindmata`)
     if (!res.ok) {
@@ -461,3 +478,445 @@ export async function resetDatabase(): Promise<any> {
     return { status: 'reset', message: 'Simulated reset' }
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// V1 Incident Intelligence & Earth API
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface V1Incident {
+  incident_id: string
+  title: string
+  primary_cause: string
+  cause_label: string
+  cause_confidence: number
+  cause_ranking: Array<{ cause: string; label: string; probability: number; category?: string }>
+  cause_ranking_rules?: Array<{ cause: string; label: string; probability: number }>
+  cause_ranking_ml?: Array<{ cause: string; label: string; probability: number }>
+  confidence_level: 'low' | 'medium' | 'high'
+  summary: string
+  why_not_higher?: string[]
+  check_next?: string
+  severity_score: number
+  severity_level: 'Low' | 'Medium' | 'High'
+  severity_factors?: string[]
+  nearest_infrastructure?: {
+    hospital?: { name: string; distance_km: number; id?: string }
+    fire_station?: { name: string; distance_km: number; id?: string }
+    station?: { name: string; distance_km: number; id?: string }
+  }
+  centroid_lat: number
+  centroid_lon: number
+  radius_m: number
+  neighborhood: string
+  city?: string
+  country?: string
+  event_ids: string[]
+  relationships?: any[]
+  explanation?: string
+  events?: any[]
+  created_at: string
+  updated_at: string
+}
+
+export const MOCK_V1_INCIDENTS: V1Incident[] = [
+  {
+    incident_id: 'INCIDENT-001',
+    title: 'Drainage / Waterlogging Failure — Hindmata Junction',
+    primary_cause: 'drainage_failure',
+    cause_label: 'Drainage / Waterlogging Failure',
+    cause_confidence: 0.88,
+    cause_ranking: [
+      { cause: 'drainage_failure', label: 'Drainage / Waterlogging Failure', probability: 0.88, category: 'Hydrological' },
+      { cause: 'road_blockage', label: 'Road Blockage / Obstruction', probability: 0.35, category: 'Transportation' },
+      { cause: 'road_accident', label: 'Road Accident / Collision', probability: 0.12, category: 'Safety' },
+      { cause: 'power_outage', label: 'Power Grid Failure / Blackout', probability: 0.08, category: 'Utility' },
+      { cause: 'gas_leak_hazard', label: 'Gas Leak or Hazard', probability: 0.04, category: 'Hazard' },
+    ],
+    cause_ranking_rules: [
+      { cause: 'drainage_failure', label: 'Drainage / Waterlogging Failure', probability: 0.85 },
+      { cause: 'road_blockage', label: 'Road Blockage / Obstruction', probability: 0.32 },
+    ],
+    cause_ranking_ml: [
+      { cause: 'drainage_failure', label: 'Drainage / Waterlogging Failure', probability: 0.91 },
+      { cause: 'road_blockage', label: 'Road Blockage / Obstruction', probability: 0.38 },
+    ],
+    confidence_level: 'high',
+    summary: 'Heavy rainfall likely caused flooding near Hindmata. Confidence: high, because multiple verified physical sensors and dispatch calls corroborate it.',
+    why_not_higher: [
+      'Missing physical sensor corroboration in secondary stormwater outfall',
+      'Few eyewitness dispatch calls relative to storm intensity',
+    ],
+    check_next: 'water_level',
+    severity_score: 82,
+    severity_level: 'High',
+    severity_factors: ['92 cm water', '4 source types', 'Sensor anomaly (z=3.2)'],
+    nearest_infrastructure: {
+      hospital: { name: 'Gleneagles Hospital Super Speciality', distance_km: 1.72, id: 'INFRA-MUM-5099872961' },
+      fire_station: { name: 'Testing Fire Station', distance_km: 3.17, id: 'INFRA-MUM-2187315849' },
+      station: { name: 'Naigaon Railway Station', distance_km: 0.40, id: 'INFRA-MUM-3806743196' },
+    },
+    centroid_lat: 19.0112,
+    centroid_lon: 72.8512,
+    radius_m: 450,
+    neighborhood: 'Hindmata Junction, Dadar East',
+    city: 'Mumbai',
+    country: 'India',
+    event_ids: ['REAL-EVT-001', 'REAL-EVT-002', 'REAL-EVT-003', 'REAL-EVT-004'],
+    explanation: 'Incident verified through multimodal telemetry. Water depth gauge reached 92.5 cm during cloudburst while vehicular velocity plunged below 2.1 km/h.',
+    created_at: new Date(Date.now() - 45 * 60000).toISOString(),
+    updated_at: new Date().toISOString(),
+    events: [
+      {
+        event_id: 'REAL-EVT-001',
+        source_type: 'water_level',
+        source_name: 'BMC Storm Water Drainage Dept',
+        source_url: 'https://dm.mcgm.gov.in/',
+        lat: 19.0112,
+        lon: 72.8512,
+        trust: 0.95,
+        is_anomaly: true,
+        anomaly_zscore: 3.2,
+        is_duplicate: false,
+        payload: { value: 92.5, unit: 'cm', description: 'Hindmata Flyover water depth gauge reaches 92.5 cm during cloudburst' },
+      },
+      {
+        event_id: 'REAL-EVT-002',
+        source_type: 'citizen_report',
+        source_name: 'Mumbai 24x7 Citizen Helpline',
+        source_url: 'https://dm.mcgm.gov.in/',
+        lat: 19.0125,
+        lon: 72.8520,
+        trust: 0.75,
+        is_anomaly: false,
+        anomaly_zscore: 0.0,
+        is_duplicate: false,
+        payload: { text: 'Waist-deep water near Chitra Cinema; commercial shops flooding' },
+      },
+      {
+        event_id: 'REAL-EVT-003',
+        source_type: 'road_sensor',
+        source_name: 'Mumbai Traffic Police Telemetry',
+        source_url: 'https://dm.mcgm.gov.in/',
+        lat: 19.0108,
+        lon: 72.8509,
+        trust: 0.90,
+        is_anomaly: true,
+        anomaly_zscore: 2.8,
+        is_duplicate: false,
+        payload: { value: 2.1, unit: 'km/h', description: 'Traffic speed on Dr. Ambedkar Road plunges to 2.1 km/h' },
+      },
+      {
+        event_id: 'REAL-EVT-004',
+        source_type: 'transit',
+        source_name: 'BEST Bus Transit Automated Vehicle Locator',
+        source_url: 'https://dm.mcgm.gov.in/',
+        lat: 19.0118,
+        lon: 72.8515,
+        trust: 0.92,
+        is_anomaly: false,
+        anomaly_zscore: 0.0,
+        is_duplicate: false,
+        payload: { description: 'BEST Bus Routes 11, 22, 66 diverted via Char Rasta due to waterlogging' },
+      },
+    ],
+  },
+  {
+    incident_id: 'INCIDENT-002',
+    title: 'Transit Corridor Track Submersion — Matunga Station',
+    primary_cause: 'drainage_failure',
+    cause_label: 'Railway Drainage Submersion',
+    cause_confidence: 0.81,
+    cause_ranking: [
+      { cause: 'drainage_failure', label: 'Drainage Failure', probability: 0.81, category: 'Hydrological' },
+      { cause: 'road_blockage', label: 'Track Obstruction', probability: 0.28, category: 'Transportation' },
+    ],
+    confidence_level: 'high',
+    summary: 'Storm runoff overflowed railway drainage tracks near Matunga. Confidence: high, because track telemetry and dispatch reports confirm submersion.',
+    why_not_higher: ['No direct Doppler radar confirmation in sector'],
+    check_next: 'weather',
+    severity_score: 76,
+    severity_level: 'High',
+    severity_factors: ['40 cm track water', 'Transit halt', 'Suburban rail network affected'],
+    nearest_infrastructure: {
+      hospital: { name: 'Pikale Hospital', distance_km: 1.2, id: 'INFRA-MUM-4672225593' },
+      fire_station: { name: 'Testing Fire Station', distance_km: 2.1, id: 'INFRA-MUM-2187315849' },
+      station: { name: 'Matunga Railway Station', distance_km: 0.15, id: 'INFRA-MUM-4264457295' },
+    },
+    centroid_lat: 19.0269,
+    centroid_lon: 72.8553,
+    radius_m: 350,
+    neighborhood: 'Matunga Railway Station Tracks',
+    city: 'Mumbai',
+    country: 'India',
+    event_ids: ['REAL-EVT-007'],
+    created_at: new Date(Date.now() - 30 * 60000).toISOString(),
+    updated_at: new Date().toISOString(),
+    events: [
+      {
+        event_id: 'REAL-EVT-007',
+        source_type: 'transit',
+        source_name: 'Central Railway Track Telemetry',
+        source_url: 'https://dm.mcgm.gov.in/',
+        lat: 19.0269,
+        lon: 72.8553,
+        trust: 0.95,
+        is_anomaly: true,
+        anomaly_zscore: 3.0,
+        is_duplicate: false,
+        payload: { value: 40.0, description: 'Central Railway suburban tracks submerged at Sion-Matunga; services halted' },
+      },
+    ],
+  },
+  {
+    incident_id: 'INCIDENT-003',
+    title: 'Street Condition Defect — Manhattan Avenue, Brooklyn',
+    primary_cause: 'road_blockage',
+    cause_label: 'Infrastructure Obstruction',
+    cause_confidence: 0.72,
+    cause_ranking: [
+      { cause: 'road_blockage', label: 'Road Obstruction', probability: 0.72, category: 'Transportation' },
+      { cause: 'road_accident', label: 'Traffic Collision', probability: 0.25, category: 'Safety' },
+    ],
+    confidence_level: 'medium',
+    summary: 'Hardware defect disrupted arterial flow on Manhattan Avenue. Confidence: medium, because citizen 311 report confirmed by traffic signal controller.',
+    why_not_higher: ['Lack of physical IoT gauge telemetry'],
+    check_next: 'road_sensor',
+    severity_score: 52,
+    severity_level: 'Medium',
+    severity_factors: ['Hardware dislocation', '2 source reports'],
+    nearest_infrastructure: {
+      hospital: { name: 'Lenox Health Greenwich Village', distance_km: 3.5, id: 'INFRA-NYC-357620244' },
+      fire_station: { name: 'New York Engine Company 221', distance_km: 1.1, id: 'INFRA-NYC-368047094' },
+      station: { name: 'Bedford Avenue Station', distance_km: 0.6, id: 'INFRA-NYC-1002' },
+    },
+    centroid_lat: 40.7330,
+    centroid_lon: -73.9547,
+    radius_m: 250,
+    neighborhood: 'MANHATTAN AVENUE, BROOKLYN',
+    city: 'New York',
+    country: 'United States',
+    event_ids: ['NYC-311-70702737'],
+    created_at: new Date(Date.now() - 60 * 60000).toISOString(),
+    updated_at: new Date().toISOString(),
+    events: [
+      {
+        event_id: 'NYC-311-70702737',
+        source_type: 'citizen_report',
+        source_name: 'NYC 311 (DOT)',
+        source_url: 'https://data.cityofnewyork.us',
+        lat: 40.7330,
+        lon: -73.9547,
+        trust: 0.78,
+        is_anomaly: false,
+        anomaly_zscore: 0.0,
+        is_duplicate: false,
+        payload: { description: 'NYC 311: Street Condition - Defective Hardware at MANHATTAN AVENUE' },
+      },
+    ],
+  },
+]
+
+export async function fetchV1Cities(): Promise<string[]> {
+  try {
+    const res = await fetch(`${API_BASE}/v1/cities`)
+    if (!res.ok) throw new Error('Failed to fetch v1 cities')
+    return await res.json()
+  } catch (err) {
+    console.warn('Backend unavailable, using fallback v1 cities:', err)
+    return ['Mumbai', 'New York']
+  }
+}
+
+export async function fetchV1Incidents(city?: string, severity?: string): Promise<V1Incident[]> {
+  try {
+    const params = new URLSearchParams()
+    if (city) params.set('city', city)
+    if (severity) params.set('severity', severity)
+    const url = `${API_BASE}/v1/incidents${params.toString() ? `?${params.toString()}` : ''}`
+    const res = await fetch(url)
+    if (!res.ok) throw new Error('Failed to fetch v1 incidents')
+    return await res.json()
+  } catch (err) {
+    console.warn('Backend unavailable, using fallback v1 incidents:', err)
+    let filtered = [...MOCK_V1_INCIDENTS]
+    if (city) {
+      filtered = filtered.filter(i => (i.city || '').toLowerCase().includes(city.toLowerCase()))
+    }
+    if (severity) {
+      filtered = filtered.filter(i => i.severity_level.toLowerCase() === severity.toLowerCase())
+    }
+    return filtered
+  }
+}
+
+export async function fetchV1Incident(id: string): Promise<V1Incident> {
+  try {
+    const res = await fetch(`${API_BASE}/v1/incidents/${id}`)
+    if (!res.ok) throw new Error(`Failed to fetch incident ${id}`)
+    return await res.json()
+  } catch (err) {
+    console.warn(`Backend unavailable, using fallback incident for ${id}:`, err)
+    const match = MOCK_V1_INCIDENTS.find(i => i.incident_id === id) || MOCK_V1_INCIDENTS[0]
+    return match
+  }
+}
+
+export async function fetchV1Replay(id: string): Promise<any> {
+  try {
+    const res = await fetch(`${API_BASE}/v1/incidents/${id}/replay`)
+    if (!res.ok) throw new Error('Failed to fetch v1 replay')
+    return await res.json()
+  } catch (err) {
+    console.warn('Backend unavailable, using fallback replay:', err)
+    return {
+      incident_id: id,
+      total_steps: 4,
+      steps: [
+        {
+          step: 1,
+          event: MOCK_V1_INCIDENTS[0].events?.[0],
+          confidence: 0.42,
+          confidence_level: 'low',
+          primary_cause: 'drainage_failure',
+          cause_label: 'Drainage Failure',
+          severity_level: 'Medium',
+        },
+        {
+          step: 2,
+          event: MOCK_V1_INCIDENTS[0].events?.[1],
+          confidence: 0.65,
+          confidence_level: 'medium',
+          primary_cause: 'drainage_failure',
+          cause_label: 'Drainage Failure',
+          severity_level: 'High',
+        },
+        {
+          step: 3,
+          event: MOCK_V1_INCIDENTS[0].events?.[2],
+          confidence: 0.78,
+          confidence_level: 'high',
+          primary_cause: 'drainage_failure',
+          cause_label: 'Drainage Failure',
+          severity_level: 'High',
+        },
+        {
+          step: 4,
+          event: MOCK_V1_INCIDENTS[0].events?.[3],
+          confidence: 0.88,
+          confidence_level: 'high',
+          primary_cause: 'drainage_failure',
+          cause_label: 'Drainage Failure',
+          severity_level: 'High',
+        },
+      ],
+    }
+  }
+}
+
+export async function fetchV1Briefing(id: string): Promise<any> {
+  try {
+    const res = await fetch(`${API_BASE}/v1/incidents/${id}/briefing`)
+    if (!res.ok) throw new Error('Failed to fetch v1 briefing')
+    return await res.json()
+  } catch (err) {
+    console.warn('Backend unavailable, using fallback briefing:', err)
+    return {
+      incident_id: id,
+      briefing: '### 🚨 Operational Intelligence Briefing\n**Incident Status**: Verified Drainage Failure near Hindmata Junction.\n- **Primary Driver**: Stormwater culvert saturation (92.5 cm depth gauge reading)\n- **Arterial Velocity**: Traffic flow degraded to 2.1 km/h on Dr. Ambedkar Road\n- **Immediate Priority**: Deploy mobile dewatering units to Hindmata depression.',
+      summary: MOCK_V1_INCIDENTS[0].summary,
+      confidence_level: 'high',
+      recommended_actions: [
+        'Deploy municipal suction pumps at Hindmata culvert basin',
+        'Reroute traffic along Dr. Ambedkar Road via Char Rasta',
+        'Alert Central Railway track monitoring teams at Matunga approach',
+      ],
+      source: 'fallback',
+    }
+  }
+}
+
+export async function fetchV1Infrastructure(city?: string): Promise<any> {
+  try {
+    const params = new URLSearchParams()
+    if (city) params.set('city', city)
+    const res = await fetch(`${API_BASE}/v1/layers/infrastructure?${params.toString()}`)
+    if (!res.ok) throw new Error('Failed to fetch infrastructure layer')
+    return await res.json()
+  } catch (err) {
+    console.warn('Backend unavailable, using fallback infrastructure:', err)
+    return {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [72.8405, 18.9994] },
+          properties: { name: 'Gleneagles Hospital', type: 'hospital', city: 'Mumbai' },
+        },
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [72.8538, 19.0396] },
+          properties: { name: 'Testing Fire Station', type: 'fire_station', city: 'Mumbai' },
+        },
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [72.8478, 19.0095] },
+          properties: { name: 'Naigaon Station', type: 'station', city: 'Mumbai' },
+        },
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [72.8501, 19.0274] },
+          properties: { name: 'Matunga Station', type: 'station', city: 'Mumbai' },
+        },
+      ],
+    }
+  }
+}
+
+export async function fetchV1Rainfall(city?: string): Promise<any> {
+  try {
+    const params = new URLSearchParams()
+    if (city) params.set('city', city)
+    const res = await fetch(`${API_BASE}/v1/layers/rainfall?${params.toString()}`)
+    if (!res.ok) throw new Error('Failed to fetch rainfall layer')
+    return await res.json()
+  } catch (err) {
+    console.warn('Backend unavailable, using fallback rainfall layer:', err)
+    return {
+      type: 'FeatureCollection',
+      city: city || 'Mumbai',
+      features: [
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [72.8512, 19.0112] },
+          properties: { rain_mm: 92.5, timestamp: new Date().toISOString(), provider: 'Open-Meteo' },
+        },
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [72.8520, 19.0125] },
+          properties: { rain_mm: 78.0, timestamp: new Date().toISOString(), provider: 'Open-Meteo' },
+        },
+        {
+          type: 'Feature',
+          geometry: { type: 'Point', coordinates: [72.8553, 19.0269] },
+          properties: { rain_mm: 65.0, timestamp: new Date().toISOString(), provider: 'Open-Meteo' },
+        },
+      ],
+    }
+  }
+}
+
+export async function postV1Event(event: any): Promise<any> {
+  try {
+    const res = await fetch(`${API_BASE}/v1/events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(event),
+    })
+    if (!res.ok) throw new Error('Failed to ingest event')
+    return await res.json()
+  } catch (err) {
+    console.warn('Backend unavailable, event handled locally:', err)
+    return { status: 'ok', event, incident: MOCK_V1_INCIDENTS[0] }
+  }
+}
+

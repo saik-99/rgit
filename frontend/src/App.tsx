@@ -1,24 +1,15 @@
 import React from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { Header } from './components/Header'
-import { LandingPage } from './pages/LandingPage'
-import { DashboardPage } from './pages/DashboardPage'
-import { SourcesPage } from './pages/SourcesPage'
+import { EarthPage } from './pages/EarthPage'
 
 function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-[#F5F7FA] dark:bg-slate-950 flex flex-col font-sans">
-        <Header />
-        <main className="flex-1 flex flex-col">
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/sources" element={<SourcesPage />} />
-            <Route path="/sensors" element={<SourcesPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </main>
+      <div className="w-screen h-screen bg-black overflow-hidden font-sans">
+        <Routes>
+          <Route path="/" element={<EarthPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
       </div>
     </BrowserRouter>
   )

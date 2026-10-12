@@ -20,6 +20,9 @@ from .severity import compute_severity_and_priority, compute_data_completeness
 from .explainer import generate_operator_briefing
 from .engine import IncidentIntelligenceEngine, analyze_events, build_evidence_graph
 
+from .anomaly import detect_anomalies, AnomalyDetector
+from .ml_classifier import MLIncidentClassifier, get_ml_classifier, combine_cause_rankings
+
 __all__ = [
     "IncidentIntelligenceEngine",
     "analyze_events",
@@ -32,8 +35,14 @@ __all__ = [
     "compute_severity_and_priority",
     "compute_data_completeness",
     "generate_operator_briefing",
+    "detect_anomalies",
+    "AnomalyDetector",
+    "MLIncidentClassifier",
+    "get_ml_classifier",
+    "combine_cause_rankings",
     "NormalizedEvent",
     "EvidenceRelationship",
     "IncidentReport",
     "INCIDENT_TAXONOMY"
 ]
+

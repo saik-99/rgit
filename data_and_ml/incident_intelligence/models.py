@@ -32,6 +32,7 @@ class NormalizedEvent:
     is_synthetic: bool = False
     data_type: str = "reported_incident" # direct_observation, reported_incident, mapped_infrastructure, model_weather
     source_url: Optional[str] = None
+    source_name: Optional[str] = None
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -66,11 +67,19 @@ class IncidentReport:
     cause_label: str
     cause_confidence: float
     cause_ranking: list[dict]
-    severity_score: int                  # 0 to 100
-    severity_level: str                  # critical, high, medium, low
-    response_priority: str               # P1_CRITICAL, P2_HIGH, P3_MEDIUM, P4_LOW
-    data_completeness: float             # 0.0 to 1.0 (evaluates sensor, weather, spatial, eyewitness presence)
-    verification_required: bool          # True if high severity with low confidence or missing critical sensors
+    cause_ranking_rules: list[dict] = field(default_factory=list)
+    cause_ranking_ml: list[dict] = field(default_factory=list)
+    confidence_level: str = "medium"     # low, medium, high
+    summary: str = ""
+    why_not_higher: list[str] = field(default_factory=list)
+    check_next: str = ""
+    severity_score: int = 50             # 0 to 100
+    severity_level: str = "Medium"       # Low, Medium, High
+    severity_factors: list[str] = field(default_factory=list)
+    nearest_infrastructure: Optional[dict] = None
+    response_priority: str = "P3_MEDIUM" # P1_CRITICAL, P2_HIGH, P3_MEDIUM, P4_LOW
+    data_completeness: float = 0.5       # 0.0 to 1.0 (evaluates sensor, weather, spatial, eyewitness presence)
+    verification_required: bool = False  # True if high severity with low confidence or missing critical sensors
     centroid_lat: Optional[float] = None
     centroid_lon: Optional[float] = None
     radius_m: float = 0.0
@@ -95,3 +104,4 @@ class IncidentReport:
             d["updated_at"] = self.updated_at.isoformat()
         d["relationships"] = [r.to_dict() if hasattr(r, "to_dict") else r for r in self.relationships]
         return d
+

@@ -58,15 +58,16 @@ def compute_severity_and_priority(
     cause: str,
     events: List[NormalizedEvent],
     confidence: float
-) -> Tuple[int, str, str, float, bool, List[str]]:
+) -> Tuple[int, str, str, float, bool, List[str], List[str]]:
     """
     Calculates:
       - severity_score: 0 to 100
-      - severity_level: critical, high, medium, low
+      - severity_level: Low, Medium, High
       - response_priority: P1_CRITICAL, P2_HIGH, P3_MEDIUM, P4_LOW
       - data_completeness: 0.0 to 1.0
       - verification_required: bool (True if potentially severe with low confidence / missing data)
       - missing_modalities: list of missing data dimensions
+      - severity_factors: top 3 contributing factors
     """
     cause_def = INCIDENT_TAXONOMY.get(cause, {"base_severity": 50})
     base_sev = cause_def["base_severity"]
@@ -79,25 +80,25 @@ def compute_severity_and_priority(
 
     # Anomaly severity amplification
     anomaly_bonus = 0
+    max_z = 0.0
     for e in non_dups:
         if e.is_anomaly and e.anomaly_zscore > 2.5:
             anomaly_bonus = max(anomaly_bonus, min(15, int(e.anomaly_zscore * 3)))
+        if e.anomaly_zscore > max_z:
+            max_z = e.anomaly_zscore
 
     raw_severity = min(100, base_sev + source_bonus + anomaly_bonus)
 
     # Safety-critical invariant:
-    # We do NOT simply multiply raw_severity by low confidence if the underlying event is life-threatening!
-    # Instead, we retain a baseline severity floor (0.6 * raw_severity) so high hazard events are never hidden.
+    # Retain a baseline severity floor (0.6 * raw_severity) so high hazard events are never hidden.
     effective_severity = int(raw_severity * max(confidence, 0.60))
 
-    if effective_severity >= 80:
-        sev_level = "critical"
-    elif effective_severity >= 60:
-        sev_level = "high"
+    if effective_severity >= 60:
+        sev_level = "High"
     elif effective_severity >= 40:
-        sev_level = "medium"
+        sev_level = "Medium"
     else:
-        sev_level = "low"
+        sev_level = "Low"
 
     # Data completeness
     completeness, missing_modalities = compute_data_completeness(events)
@@ -119,4 +120,34 @@ def compute_severity_and_priority(
     else:
         priority = "P4_LOW"
 
-    return effective_severity, sev_level, priority, completeness, verification_required, missing_modalities
+    # Top 3 severity factors
+    factors = []
+    # 1. Physical sensor / depth / speed / rainfall reading
+    max_water = 0.0
+    for e in non_dups:
+        if e.source_type == "water_level":
+            val = e.payload.get("value")
+            if isinstance(val, (int, float)) and val > max_water:
+                max_water = float(val)
+    if max_water > 0:
+        factors.append(f"{int(round(max_water))} cm water")
+
+    # 2. Source corroboration
+    if len(source_types) > 1:
+        factors.append(f"{len(source_types)} source types")
+
+    # 3. Anomaly
+    if max_z >= 2.0:
+        factors.append(f"Sensor anomaly (z={max_z:.1f})")
+
+    # 4. Inherent hazard
+    if len(factors) < 3 and cause in ("gas_leak_hazard", "drainage_failure", "power_outage"):
+        factors.append(f"High hazard category ({cause.replace('_', ' ')})")
+
+    if len(factors) < 3:
+        factors.append(f"{len(non_dups)} events correlated")
+
+    severity_factors = factors[:3]
+
+    return effective_severity, sev_level, priority, completeness, verification_required, missing_modalities, severity_factors
+
