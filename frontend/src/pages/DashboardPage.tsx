@@ -67,7 +67,7 @@ export const DashboardPage: React.FC = () => {
   const mapRef = useRef<L.Map | null>(null)
   const tileLayerRef = useRef<L.TileLayer | null>(null)
   const layersGroupRef = useRef<L.LayerGroup | null>(null)
-  const [activeBasemap, setActiveBasemap] = useState<keyof typeof BASEMAPS>('cartoLight')
+  const [activeBasemap, setActiveBasemap] = useState<keyof typeof BASEMAPS>('esriSatellite')
 
   // Layer toggles with persistence
   const [layerFloodPolygon, setLayerFloodPolygon] = useState(() => {
@@ -228,14 +228,14 @@ export const DashboardPage: React.FC = () => {
         }).addTo(group)
       }
 
-      // 1.2 Flood Extent Polygon
+      // 1.2 Flood Extent Polygon with glowing boundary
       if (layerFloodPolygon && inc.flood_polygon && inc.flood_polygon.length > 0) {
         const latLngs = inc.flood_polygon.map((p: [number, number]) => [p[1], p[0]] as [number, number])
         const polygon = L.polygon(latLngs, {
-          color: '#1A73E8',
-          weight: 2,
-          fillColor: '#1A73E8',
-          fillOpacity: 0.35,
+          color: '#00d4ff',
+          weight: 2.5,
+          fillColor: '#0079C1',
+          fillOpacity: 0.40,
         }).addTo(group)
 
         polygon.bindPopup(`
@@ -247,19 +247,18 @@ export const DashboardPage: React.FC = () => {
         `)
       }
 
-      // 1.3 Incident Centroid Pulsing Marker
-      const pulseClass = inc.severity_level === 'critical' ? 'pulse-critical' : 'pulse-amber'
+      // 1.3 Incident Centroid Pulsing Beacon Marker
       const centroidIcon = L.divIcon({
         className: 'custom-centroid-marker',
         html: `
           <div class="relative flex items-center justify-center">
-            <div class="w-8 h-8 rounded-full bg-red-600 border-2 border-white shadow-xl flex items-center justify-center text-white font-bold text-xs ${pulseClass}">
+            <div class="w-9 h-9 rounded-full bg-red-600 border-2 border-white shadow-2xl flex items-center justify-center text-white font-black text-sm glow-beacon">
               !
             </div>
           </div>
         `,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16],
+        iconSize: [36, 36],
+        iconAnchor: [18, 18],
       })
 
       const centroidMarker = L.marker([inc.centroid_lat, inc.centroid_lon], { icon: centroidIcon }).addTo(group)
@@ -276,7 +275,7 @@ export const DashboardPage: React.FC = () => {
         </div>
       `)
 
-      // 1.4 Member Events
+      // 1.4 Member Events & Connected Glowing Graph Edges
       events.forEach((ev) => {
         let shouldRender = false
         if (ev.source_type === 'water_level' && layerWaterSensors) shouldRender = true
@@ -286,32 +285,47 @@ export const DashboardPage: React.FC = () => {
 
         if (!shouldRender) return
 
+        // Draw glowing dashed edge from incident centroid to event node
+        L.polyline([[inc.centroid_lat, inc.centroid_lon], [ev.lat, ev.lon]], {
+          color: '#38bdf8',
+          weight: 1.8,
+          opacity: 0.70,
+          dashArray: '4, 8',
+        }).addTo(group)
+
         let color = '#0079C1'
+        let glowClass = 'glow-cyan'
         let label = 'EV'
         let valText = ''
 
         if (ev.source_type === 'water_level') {
-          color = '#1A73E8'
+          color = '#0284c7'
+          glowClass = 'glow-cyan'
           label = '💧'
           valText = `${ev.payload?.value || 0}cm`
         } else if (ev.source_type === 'road_sensor') {
-          color = '#D93025'
+          color = '#dc2626'
+          glowClass = 'glow-red'
           label = '🚗'
           valText = ev.payload?.status || 'alert'
         } else if (ev.source_type === 'transit') {
-          color = '#FBBC04'
+          color = '#d97706'
+          glowClass = 'glow-amber'
           label = '🚌'
           valText = `${ev.payload?.value || 0}km/h`
         } else if (ev.source_type === 'citizen_report') {
           color = '#9333ea'
+          glowClass = 'glow-purple'
           label = '📢'
           valText = '311'
         } else if (ev.source_type === 'emergency_call') {
           color = '#e11d48'
+          glowClass = 'glow-red'
           label = '🚨'
           valText = '911'
         } else if (ev.source_type === 'weather') {
           color = '#0284c7'
+          glowClass = 'glow-cyan'
           label = '🌧️'
           valText = `${ev.payload?.value || 0}mm`
         }
@@ -319,13 +333,13 @@ export const DashboardPage: React.FC = () => {
         const evIcon = L.divIcon({
           className: 'custom-event-marker',
           html: `
-            <div class="px-2 py-1 rounded-full shadow-md border border-white text-white font-bold text-[10px] flex items-center space-x-1 whitespace-nowrap" style="background-color: ${color}">
+            <div class="px-2.5 py-1 rounded-full text-white font-bold text-[10px] flex items-center space-x-1 whitespace-nowrap glowing-node ${glowClass}" style="background-color: ${color}">
               <span>${label}</span>
               <span>${valText}</span>
             </div>
           `,
-          iconSize: [40, 20],
-          iconAnchor: [20, 10],
+          iconSize: [46, 22],
+          iconAnchor: [23, 11],
         })
 
         const marker = L.marker([ev.lat, ev.lon], { icon: evIcon }).addTo(group)
@@ -583,6 +597,34 @@ export const DashboardPage: React.FC = () => {
           </button>
         </div>
 
+      </div>
+
+      {/* ── Core Problem Statement Contrast Banner ── */}
+      <div className="bg-gradient-to-r from-[#1B3A57] via-[#0b253d] to-[#1B3A57] text-white px-4 py-1.5 border-b border-slate-700/80 flex flex-wrap items-center justify-between text-xs gap-2 shrink-0 z-20">
+        <div className="flex items-center space-x-2.5">
+          <span className="bg-[#0079C1] text-white font-black text-[10px] uppercase px-2 py-0.5 rounded shadow-xs tracking-wider">
+            Problem Solved
+          </span>
+          <span className="text-slate-200 text-xs">
+            <span className="line-through text-slate-400 mr-1.5">4 Fragmented City Sirens</span>
+            ➔ <strong className="text-emerald-400 font-bold">1 Correlated Incident Graph</strong>
+            <span className="text-slate-300 hidden sm:inline ml-1.5">(Root Cause: Drainage Failure at 88% confidence)</span>
+          </span>
+        </div>
+
+        <div className="flex items-center space-x-2 text-[11px] text-slate-300 hidden lg:flex">
+          <span className="px-1.5 py-0.5 rounded bg-sky-900/60 border border-sky-700/60">💧 Culvert Sensor</span>
+          <span>+</span>
+          <span className="px-1.5 py-0.5 rounded bg-red-900/60 border border-red-700/60">🚗 Submerged Road</span>
+          <span>+</span>
+          <span className="px-1.5 py-0.5 rounded bg-purple-900/60 border border-purple-700/60">📢 311 Complaint</span>
+          <span>+</span>
+          <span className="px-1.5 py-0.5 rounded bg-amber-900/60 border border-amber-700/60">🚌 BEST Telemetry</span>
+          <span>=</span>
+          <span className="text-emerald-300 font-extrabold bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">
+            Noisy-OR Fusion
+          </span>
+        </div>
       </div>
 
       {/* Scenario Feedback banner */}
