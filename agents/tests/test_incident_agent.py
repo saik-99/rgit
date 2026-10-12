@@ -78,5 +78,29 @@ class Interface(unittest.TestCase):
         self.assertIn("error", analyze_incident({}))
 
 
+class SocialAgent(unittest.TestCase):
+    def setUp(self):
+        from agents import run_social_agent
+        self.out = run_social_agent(use_llm=False)
+
+    def test_extracts_and_skips(self):
+        self.assertEqual(len(self.out["skipped"]), 1)          # vada pav post ignored
+        self.assertEqual(len(self.out["events"]), 7)
+
+    def test_hindmata_flood(self):
+        top = self.out["incidents"][0]
+        self.assertEqual(top["root_cause"], "DrainageFailure")
+        self.assertIn("Hindmata", top["location"])
+        self.assertEqual(len(top["duplicates_removed"]), 1)    # retweet
+        self.assertEqual(top["conflicts"][0]["verdict"], "outweighed")
+
+    def test_rules_extraction(self):
+        from agents.tools.social_tools import extract_rules
+        r = extract_rules("Milan subway flooded, 3 feet water")
+        self.assertEqual(r["signal"], "Citizen311FloodCall")
+        self.assertEqual(r["depth_ft"], 3.0)
+        self.assertEqual(extract_rules("nice weather in Pune"), {})
+
+
 if __name__ == "__main__":
     unittest.main()

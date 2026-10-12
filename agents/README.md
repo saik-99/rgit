@@ -51,3 +51,26 @@ python -m agents.incident_agent          # demo on synthetic stream
 python -m unittest discover -s agents/tests -t .
 ```
 No extra packages needed. Optional Gemini: `pip install google-genai` and set `GEMINI_API_KEY` (model via `GEMINI_MODEL`, default `gemini-2.5-flash`).
+
+---
+
+## 📱 Social Media Agent (v2)
+
+Turns posts (X/Twitter etc.) into city events in the same format as the synthetic stream, groups them by Mumbai locality, and runs the incident agent on each group.
+
+```python
+from agents import run_social_agent
+out = run_social_agent()                                   # sample posts, no keys
+out = run_social_agent(posts=my_posts)                     # posts you supply
+out = run_social_agent(query="#MumbaiRains", use_live=True)  # live X, needs X_BEARER_TOKEN
+out["events"], out["incidents"], out["skipped"], out["steps_taken"]
+```
+
+| Piece | No key (default) | Optional key |
+| --- | --- | --- |
+| Posts | `agents/data/sample_mumbai_posts.json` (synthetic, demo handles) | `X_BEARER_TOKEN` - X API is paid pay-per-use |
+| Extraction | Keyword rules + list of ~20 Mumbai localities | `GEMINI_API_KEY` - output accepted only if place/signal are from our fixed lists |
+
+Official accounts get trust 0.9 and `integrity_verified=true`; citizens get 0.6. "Roads clear" posts become `ConflictingReport`.
+
+Demo: `python -m agents.social_agent`

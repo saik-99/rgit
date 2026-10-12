@@ -88,7 +88,7 @@ def _template_briefing(a: dict) -> str:
     top = a["cause_ranking"][0]
     if top["matched_symptoms"]:
         lines.append("Evidence: " + ", ".join(top["matched_symptoms"])
-                     + f" from {a['source_count']} independent source types.")
+                     + f" from {a['source_count']} independent source type(s).")
     if a["late_arrivals"]:
         late = a["late_arrivals"][0]
         lines.append(f"Timeline corrected: {late['event_id']} ({late['signal']}) arrived "
