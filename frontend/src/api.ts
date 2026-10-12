@@ -1,4 +1,7 @@
-import type { Incident, SourceItem, WeatherMetrics } from './types'
+import type {
+  Incident, SourceItem, WeatherMetrics, EarthquakeItem,
+  GoogleFloodResponse, WindyConfig, DataSourceItem
+} from './types'
 
 const API_BASE = '/api'
 
@@ -20,6 +23,7 @@ export const MOCK_INCIDENTS: Incident[] = [
       { cause: 'drainage_failure', label: 'Drainage / Waterlogging Failure', probability: 0.88 },
       { cause: 'road_blockage', label: 'Road Blockage / Obstruction', probability: 0.35 },
       { cause: 'road_accident', label: 'Road Accident / Collision', probability: 0.12 },
+      { cause: 'earthquake', label: 'Seismic Event / Earthquake', probability: 0.05 },
       { cause: 'power_outage', label: 'Power Grid Failure / Outage', probability: 0.08 },
     ],
     confidence_history: [
@@ -189,6 +193,48 @@ export const MOCK_WEATHER: WeatherMetrics = {
   timestamp: new Date().toISOString(),
 }
 
+export const MOCK_EARTHQUAKES: EarthquakeItem[] = [
+  {
+    source_type: 'seismic',
+    device_id: 'USGS-eq-sample-1',
+    lat: 19.350,
+    lon: 73.120,
+    timestamp: new Date(Date.now() - 120 * 60000).toISOString(),
+    trust: 0.95,
+    signature_verified: true,
+    provenance: 'measured',
+    payload: {
+      usgs_id: 'eq-sample-1',
+      magnitude: 3.4,
+      depth_km: 12.0,
+      place: '24 km NE of Mumbai (Thane fault system)',
+      url: 'https://earthquake.usgs.gov/earthquakes/eventpage/sample1',
+      alert: 'green',
+      tsunami: 0,
+      provenance: 'measured',
+    },
+  },
+]
+
+export const MOCK_GOOGLE_FLOOD: GoogleFloodResponse = {
+  available: false,
+  status: 'fallback',
+  message: 'GOOGLE_FLOOD_API_KEY is not configured. River gauge forecasting API is in fallback mode.',
+  gauges: [],
+  flood_hub_url: 'https://sites.research.google/floods/l/19.0760/72.8777/10',
+  attribution: 'Flood forecast data: Google Flood Hub, CC BY 4.0',
+  coverage_note: 'Google Flood Hub models riverine flood risks, not street-level drainage / waterlogging.',
+}
+
+export const MOCK_WINDY: WindyConfig = {
+  has_key: false,
+  api_key: null,
+  embed_url: 'https://embed.windy.com/embed2.html?lat=19.076&lon=72.877&detailLat=19.076&detailLon=72.877&width=650&height=450&zoom=10&level=surface&overlay=rain&product=ecmwf&menu=&message=&marker=&calendar=now&pressure=&type=map&location=coordinates&detail=&metricWind=default&metricTemp=default&radarRange=-1',
+  attribution: 'Wind & weather data: Windy.com',
+  available_overlays: ['wind', 'rain', 'clouds', 'waves'],
+  sync_note: 'Iframe embed mode cannot sync with custom timeline scrub slider. Set WINDY_MAP_API_KEY for native Leaflet API mode.',
+}
+
 export async function fetchIncidents(): Promise<Incident[]> {
   try {
     const res = await fetch(`${API_BASE}/incidents`)
@@ -234,6 +280,106 @@ export async function fetchWeather(): Promise<WeatherMetrics> {
   } catch (err) {
     console.warn('Backend unavailable, using mock weather:', err)
     return MOCK_WEATHER
+  }
+}
+
+export async function fetchEarthquakes(scope = 'mumbai', minMag = 2.5): Promise<{ earthquakes: EarthquakeItem[]; attribution: string; count: number }> {
+  try {
+    const res = await fetch(`${API_BASE}/hazards/earthquakes?scope=${scope}&min_magnitude=${minMag}`)
+    if (!res.ok) throw new Error('Failed to fetch earthquakes')
+    return await res.json()
+  } catch (err) {
+    console.warn('Backend unavailable, using mock earthquakes:', err)
+    return {
+      count: MOCK_EARTHQUAKES.length,
+      earthquakes: MOCK_EARTHQUAKES,
+      attribution: 'Earthquake data: USGS, public domain',
+    }
+  }
+}
+
+export async function fetchGoogleFlood(): Promise<GoogleFloodResponse> {
+  try {
+    const res = await fetch(`${API_BASE}/hazards/google-flood`)
+    if (!res.ok) throw new Error('Failed to fetch Google flood data')
+    return await res.json()
+  } catch (err) {
+    console.warn('Backend unavailable, using mock Google Flood response:', err)
+    return MOCK_GOOGLE_FLOOD
+  }
+}
+
+export async function fetchWindyConfig(): Promise<WindyConfig> {
+  try {
+    const res = await fetch(`${API_BASE}/hazards/windy-config`)
+    if (!res.ok) throw new Error('Failed to fetch Windy config')
+    return await res.json()
+  } catch (err) {
+    console.warn('Backend unavailable, using mock Windy config:', err)
+    return MOCK_WINDY
+  }
+}
+
+export async function fetchDataSources(): Promise<DataSourceItem[]> {
+  try {
+    const res = await fetch(`${API_BASE}/hazards/data-sources`)
+    if (!res.ok) throw new Error('Failed to fetch data sources')
+    const json = await res.json()
+    return json.sources
+  } catch (err) {
+    console.warn('Backend unavailable, using fallback data sources:', err)
+    return [
+      {
+        id: 'usgs',
+        name: 'USGS Earthquake Hazards Program',
+        type: 'Seismic Telemetry Feed',
+        license: 'Public Domain',
+        attribution: 'Earthquake data: USGS',
+        status: 'live',
+        endpoint: 'https://earthquake.usgs.gov',
+        description: 'Global and regional real-time earthquake feeds parsed every 5 minutes.',
+      },
+      {
+        id: 'open-meteo',
+        name: 'Open-Meteo Weather API',
+        type: 'Hydro-Meteorological Forecasts',
+        license: 'CC BY 4.0',
+        attribution: 'Weather data: Open-Meteo.com',
+        status: 'live',
+        endpoint: 'https://api.open-meteo.com',
+        description: 'Hourly rainfall intensity and past 24-hour precipitation accumulation.',
+      },
+      {
+        id: 'google-flood',
+        name: 'Google Flood Hub Forecasting',
+        type: 'Riverine Flood Gauges',
+        license: 'CC BY 4.0',
+        attribution: 'Flood forecast data: Google Flood Hub, CC BY 4.0',
+        status: 'fallback',
+        endpoint: 'https://sites.research.google/floods',
+        description: 'Upstream river basin gauge forecasts with direct portal link.',
+      },
+      {
+        id: 'windy',
+        name: 'Windy.com Meteorological Layers',
+        type: 'Animated Atmospheric Overlays',
+        license: 'Proprietary Terms',
+        attribution: 'Map data: Windy.com & ECMWF',
+        status: 'fallback',
+        endpoint: 'https://embed.windy.com',
+        description: 'Radar rainfall, wind vectors, clouds, and waves via official embed.',
+      },
+      {
+        id: 'basemaps',
+        name: 'Esri & CARTO Tile Services',
+        type: 'GIS Basemaps',
+        license: 'OpenStreetMap / Esri Terms',
+        attribution: 'CARTO, OpenStreetMap, Esri',
+        status: 'live',
+        endpoint: 'CARTO & Esri World Imagery',
+        description: 'High-resolution light, dark, and satellite imagery tiles.',
+      },
+    ]
   }
 }
 

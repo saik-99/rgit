@@ -1,19 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react'
 import L from 'leaflet'
 import {
-  Activity, AlertTriangle, ShieldCheck, ShieldAlert, CloudRain, Filter,
-  Play, Pause, RotateCcw, ChevronRight, CheckCircle2, XCircle, Search,
-  Sliders, Layers, Navigation, Info, Eye, Droplets, Car, Bus, PhoneCall,
-  UserCheck, AlertOctagon, RefreshCw, BarChart3, TrendingUp, Maximize2
+  Activity, ShieldCheck, ShieldAlert, CloudRain, Play, Pause,
+  RotateCcw, ChevronRight, CheckCircle2, Search, Layers, Eye,
+  Droplets, Car, PhoneCall, Info, ExternalLink, Wind, Waves,
+  SlidersHorizontal, Database, Compass, Radio
 } from 'lucide-react'
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from 'recharts'
+import type {
+  Incident, WeatherMetrics, CauseRank,
+  EarthquakeItem, GoogleFloodResponse, WindyConfig
+} from '../types'
 import {
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  BarChart, Bar, CartesianGrid, AreaChart, Area
-} from 'recharts'
-import type { Incident, EventItem, SourceItem, WeatherMetrics, CauseRank } from '../types'
-import { fetchIncidents, fetchWeather, fetchSources, runScenario, resetDatabase } from '../api'
+  fetchIncidents, fetchWeather, fetchEarthquakes,
+  fetchGoogleFlood, fetchWindyConfig, runScenario, resetDatabase
+} from '../api'
+import { DataSourcesModal } from '../components/DataSourcesModal'
+import { WindyPanel } from '../components/WindyPanel'
 
-// Basemap URLs
+// Basemap Tile Providers
 const BASEMAPS = {
   cartoLight: {
     name: 'CARTO Light',
@@ -38,18 +43,24 @@ const BASEMAPS = {
 }
 
 export const DashboardPage: React.FC = () => {
-  // State
+  // Core Incidents & Weather State
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null)
   const [weather, setWeather] = useState<WeatherMetrics | null>(null)
-  const [sources, setSources] = useState<SourceItem[]>([])
-  const [loading, setLoading] = useState(true)
   const [scenarioLoading, setScenarioLoading] = useState(false)
   const [lastScenarioMsg, setLastScenarioMsg] = useState<string>('')
 
-  // Search & Filter
+  // Search & Cause Filter
   const [searchQuery, setSearchQuery] = useState('')
   const [filterCause, setFilterCause] = useState<string>('all')
+
+  // External Hazard Data
+  const [earthquakes, setEarthquakes] = useState<EarthquakeItem[]>([])
+  const [earthquakeScope, setEarthquakeScope] = useState<'mumbai' | 'global'>('mumbai')
+  const [minMagnitude, setMinMagnitude] = useState<number>(2.5)
+  const [googleFlood, setGoogleFlood] = useState<GoogleFloodResponse | null>(null)
+  const [windyConfig, setWindyConfig] = useState<WindyConfig | null>(null)
+  const [isDataSourcesModalOpen, setIsDataSourcesModalOpen] = useState(false)
 
   // Map state
   const mapContainerRef = useRef<HTMLDivElement>(null)
@@ -58,13 +69,36 @@ export const DashboardPage: React.FC = () => {
   const layersGroupRef = useRef<L.LayerGroup | null>(null)
   const [activeBasemap, setActiveBasemap] = useState<keyof typeof BASEMAPS>('cartoLight')
 
-  // Layer toggles
-  const [layerFloodPolygon, setLayerFloodPolygon] = useState(true)
-  const [layerClusterRadius, setLayerClusterRadius] = useState(true)
-  const [layerWaterSensors, setLayerWaterSensors] = useState(true)
-  const [layerTrafficSensors, setLayerTrafficSensors] = useState(true)
-  const [layerCitizenReports, setLayerCitizenReports] = useState(true)
-  const [layerWeatherStations, setLayerWeatherStations] = useState(true)
+  // Layer toggles with persistence
+  const [layerFloodPolygon, setLayerFloodPolygon] = useState(() => {
+    return localStorage.getItem('layer_flood') !== 'false'
+  })
+  const [layerClusterRadius, setLayerClusterRadius] = useState(() => {
+    return localStorage.getItem('layer_cluster') !== 'false'
+  })
+  const [layerWaterSensors, setLayerWaterSensors] = useState(() => {
+    return localStorage.getItem('layer_water') !== 'false'
+  })
+  const [layerTrafficSensors, setLayerTrafficSensors] = useState(() => {
+    return localStorage.getItem('layer_traffic') !== 'false'
+  })
+  const [layerCitizenReports, setLayerCitizenReports] = useState(() => {
+    return localStorage.getItem('layer_citizen') !== 'false'
+  })
+  const [layerWeatherStations, setLayerWeatherStations] = useState(() => {
+    return localStorage.getItem('layer_weather') !== 'false'
+  })
+
+  // Hazard Layer Toggles
+  const [layerEarthquakes, setLayerEarthquakes] = useState(() => {
+    return localStorage.getItem('layer_earthquakes') !== 'false'
+  })
+  const [layerGoogleFlood, setLayerGoogleFlood] = useState(() => {
+    return localStorage.getItem('layer_google_flood') === 'true' // off by default per spec
+  })
+  const [layerWindy, setLayerWindy] = useState(() => {
+    return localStorage.getItem('layer_windy') === 'true' // off by default
+  })
 
   // Replay Time Slider state
   const [timelineIndex, setTimelineIndex] = useState<number>(100)
@@ -72,15 +106,44 @@ export const DashboardPage: React.FC = () => {
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1)
   const playTimerRef = useRef<any>(null)
 
+  // Persist layer toggles in localStorage and URL query params
+  useEffect(() => {
+    localStorage.setItem('layer_flood', String(layerFloodPolygon))
+    localStorage.setItem('layer_cluster', String(layerClusterRadius))
+    localStorage.setItem('layer_water', String(layerWaterSensors))
+    localStorage.setItem('layer_traffic', String(layerTrafficSensors))
+    localStorage.setItem('layer_citizen', String(layerCitizenReports))
+    localStorage.setItem('layer_weather', String(layerWeatherStations))
+    localStorage.setItem('layer_earthquakes', String(layerEarthquakes))
+    localStorage.setItem('layer_google_flood', String(layerGoogleFlood))
+    localStorage.setItem('layer_windy', String(layerWindy))
+
+    // URL params synchronization
+    const params = new URLSearchParams()
+    if (!layerFloodPolygon) params.set('flood', '0')
+    if (layerEarthquakes) params.set('eq', '1')
+    if (layerGoogleFlood) params.set('gflood', '1')
+    if (layerWindy) params.set('windy', '1')
+    if (earthquakeScope !== 'mumbai') params.set('scope', earthquakeScope)
+    const newRelativePathQuery = window.location.pathname + '?' + params.toString()
+    window.history.replaceState(null, '', newRelativePathQuery)
+  }, [
+    layerFloodPolygon, layerClusterRadius, layerWaterSensors,
+    layerTrafficSensors, layerCitizenReports, layerWeatherStations,
+    layerEarthquakes, layerGoogleFlood, layerWindy, earthquakeScope
+  ])
+
   // Load Data
   const loadData = async () => {
     try {
-      setLoading(true)
-      const [incData, wData, sData] = await Promise.all([
+      const [incData, wData, eqData, gFloodData, wndyData] = await Promise.all([
         fetchIncidents(),
         fetchWeather(),
-        fetchSources(),
+        fetchEarthquakes(earthquakeScope, minMagnitude),
+        fetchGoogleFlood(),
+        fetchWindyConfig(),
       ])
+
       setIncidents(incData)
       if (incData.length > 0 && !selectedIncident) {
         setSelectedIncident(incData[0])
@@ -89,22 +152,23 @@ export const DashboardPage: React.FC = () => {
         setSelectedIncident(updated)
       }
       setWeather(wData)
-      setSources(sData)
-    } finally {
-      setLoading(false)
+      setEarthquakes(eqData.earthquakes)
+      setGoogleFlood(gFloodData)
+      setWindyConfig(wndyData)
+    } catch (err) {
+      console.warn('Data load warning:', err)
     }
   }
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [earthquakeScope, minMagnitude])
 
   // Initialize Leaflet Map
   useEffect(() => {
     if (!mapContainerRef.current) return
     if (mapRef.current) return
 
-    // Mumbai default center (around Hindmata)
     const map = L.map(mapContainerRef.current, {
       center: [19.0112, 72.8512],
       zoom: 15,
@@ -141,19 +205,18 @@ export const DashboardPage: React.FC = () => {
     tileLayerRef.current = newTile
   }, [activeBasemap])
 
-  // Update Map Layers whenever incident, filter, or toggles change
+  // Render Map Layers
   useEffect(() => {
     if (!mapRef.current || !layersGroupRef.current) return
 
     const group = layersGroupRef.current
     group.clearLayers()
 
-    // Render all incidents or selected incident
+    // 1. Incidents & Associated Events
     incidents.forEach((inc) => {
-      const isSelected = selectedIncident?.id === inc.id
       const events = inc.events || []
 
-      // 1. Cluster radius circle
+      // 1.1 Cluster Radius Circle
       if (layerClusterRadius) {
         L.circle([inc.centroid_lat, inc.centroid_lon], {
           radius: inc.radius_m || 450,
@@ -161,13 +224,12 @@ export const DashboardPage: React.FC = () => {
           weight: 1.5,
           dashArray: '4, 6',
           fillColor: '#0079C1',
-          fillOpacity: 0.06,
+          fillOpacity: 0.05,
         }).addTo(group)
       }
 
-      // 2. Flood Extent Polygon
+      // 1.2 Flood Extent Polygon
       if (layerFloodPolygon && inc.flood_polygon && inc.flood_polygon.length > 0) {
-        // GeoJSON [lon, lat] converted to Leaflet [lat, lon]
         const latLngs = inc.flood_polygon.map((p: [number, number]) => [p[1], p[0]] as [number, number])
         const polygon = L.polygon(latLngs, {
           color: '#1A73E8',
@@ -185,7 +247,7 @@ export const DashboardPage: React.FC = () => {
         `)
       }
 
-      // 3. Incident centroid pulsing marker
+      // 1.3 Incident Centroid Pulsing Marker
       const pulseClass = inc.severity_level === 'critical' ? 'pulse-critical' : 'pulse-amber'
       const centroidIcon = L.divIcon({
         className: 'custom-centroid-marker',
@@ -214,7 +276,7 @@ export const DashboardPage: React.FC = () => {
         </div>
       `)
 
-      // 4. Events markers
+      // 1.4 Member Events
       events.forEach((ev) => {
         let shouldRender = false
         if (ev.source_type === 'water_level' && layerWaterSensors) shouldRender = true
@@ -269,14 +331,14 @@ export const DashboardPage: React.FC = () => {
         const marker = L.marker([ev.lat, ev.lon], { icon: evIcon }).addTo(group)
         marker.bindPopup(`
           <div class="p-3 font-sans min-w-[220px]">
-            <div class="flex items-center justify-between border-b pb-1.5 mb-1.5">
+            <div class="flex items-center justify-between border-b pb-1 mb-1.5">
               <span class="text-xs font-bold uppercase text-slate-700">${ev.source_type.replace('_', ' ')}</span>
-              <span class="text-[11px] px-1.5 py-0.5 rounded font-mono ${ev.signature_verified ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
+              <span class="text-[10px] px-1.5 py-0.5 rounded font-mono ${ev.signature_verified ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">
                 ${ev.signature_verified ? 'HMAC OK' : 'NO HMAC'}
               </span>
             </div>
             <div class="text-xs text-slate-800 mb-1"><strong>Device:</strong> ${ev.device_id || 'Unknown'}</div>
-            <div class="text-xs text-slate-800 mb-1"><strong>Trust Score:</strong> ${(ev.trust * 100).toFixed(0)}%</div>
+            <div class="text-xs text-slate-800 mb-1"><strong>Trust:</strong> ${(ev.trust * 100).toFixed(0)}%</div>
             ${ev.payload?.description ? `<div class="text-xs text-slate-600 bg-slate-50 p-1.5 rounded mt-1 italic">"${ev.payload.description}"</div>` : ''}
             ${ev.payload?.text ? `<div class="text-xs text-slate-600 bg-slate-50 p-1.5 rounded mt-1 italic">"${ev.payload.text}"</div>` : ''}
           </div>
@@ -284,13 +346,102 @@ export const DashboardPage: React.FC = () => {
       })
     })
 
-    // Auto-fit bounds if selected incident changes
+    // 2. USGS Earthquakes Layer
+    if (layerEarthquakes && earthquakes.length > 0) {
+      earthquakes.forEach((eq) => {
+        const mag = eq.payload.magnitude || 3.0
+        const depth = eq.payload.depth_km || 10.0
+        const isTest = eq.provenance === 'test'
+        const radius = Math.max(7, Math.min(24, Math.round(mag * 3.5)))
+
+        let depthColor = '#ef4444' // shallow <30km
+        if (depth >= 70) {
+          depthColor = '#3b82f6' // deep >70km
+        } else if (depth >= 30) {
+          depthColor = '#f59e0b' // intermediate
+        }
+        if (isTest) depthColor = '#ec4899'
+
+        const eqIcon = L.divIcon({
+          className: 'custom-eq-marker',
+          html: `
+            <div class="relative flex items-center justify-center">
+              <div class="rounded-full border-2 border-white shadow-lg flex items-center justify-center text-white font-extrabold text-[10px]"
+                   style="width: ${radius * 2}px; height: ${radius * 2}px; background-color: ${depthColor};">
+                ${mag.toFixed(1)}
+              </div>
+              ${isTest ? '<span class="absolute -top-2 -right-2 bg-pink-600 text-white text-[8px] font-bold px-1 rounded shadow-xs">TEST</span>' : ''}
+            </div>
+          `,
+          iconSize: [radius * 2, radius * 2],
+          iconAnchor: [radius, radius],
+        })
+
+        const marker = L.marker([eq.lat, eq.lon], { icon: eqIcon }).addTo(group)
+        marker.bindPopup(`
+          <div class="p-3 font-sans min-w-[240px]">
+            <div class="flex items-center justify-between border-b pb-1 mb-1.5">
+              <span class="text-xs font-bold text-red-600 uppercase flex items-center space-x-1">
+                <span>🌋 USGS Seismic Telemetry</span>
+              </span>
+              <span class="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${isTest ? 'bg-pink-100 text-pink-700' : 'bg-slate-100 text-slate-700'}">
+                ${isTest ? 'DEMO TEST' : 'MEASURED'}
+              </span>
+            </div>
+            <div class="text-sm font-bold text-slate-900 mb-1">M ${mag.toFixed(1)} - ${eq.payload.place}</div>
+            <div class="text-xs text-slate-600 space-y-1 mb-2">
+              <div><strong>Focal Depth:</strong> ${depth} km</div>
+              <div><strong>Epicenter:</strong> ${eq.lat.toFixed(3)}, ${eq.lon.toFixed(3)}</div>
+              <div><strong>Time:</strong> ${new Date(eq.timestamp).toLocaleTimeString()}</div>
+            </div>
+            <div class="pt-2 border-t flex items-center justify-between text-[11px]">
+              <span class="text-slate-400 italic">Earthquake data: USGS</span>
+              <a href="${eq.payload.url}" target="_blank" rel="noreferrer" class="text-[#0079C1] hover:underline font-bold flex items-center space-x-0.5">
+                <span>USGS Event Page</span>
+                <ExternalLink className="w-3 h-3 ml-0.5" />
+              </a>
+            </div>
+          </div>
+        `)
+      })
+    }
+
+    // 3. Google Flood Upstream River Gauges Layer (if live)
+    if (layerGoogleFlood && googleFlood?.gauges && googleFlood.gauges.length > 0) {
+      googleFlood.gauges.forEach((gauge) => {
+        const sevColor = gauge.severity === 'red' ? '#D93025' : gauge.severity === 'amber' ? '#FBBC04' : '#34A853'
+        const gaugeIcon = L.divIcon({
+          className: 'custom-river-gauge',
+          html: `
+            <div class="w-7 h-7 rounded-full border-2 border-white shadow-md flex items-center justify-center text-white font-bold text-xs" style="background-color: ${sevColor}">
+              🌊
+            </div>
+          `,
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
+        })
+
+        const marker = L.marker([gauge.lat, gauge.lon], { icon: gaugeIcon }).addTo(group)
+        marker.bindPopup(`
+          <div class="p-3 font-sans min-w-[220px]">
+            <div class="text-[10px] font-bold uppercase text-sky-700 mb-0.5">Upstream River Risk Gauge</div>
+            <div class="text-xs font-bold text-slate-900">${gauge.name} (${gauge.river})</div>
+            <div class="text-xs text-slate-600 mt-1">Status: <strong>${gauge.status}</strong></div>
+            <div class="text-[10px] text-slate-400 mt-2 italic">Flood forecast data: Google Flood Hub, CC BY 4.0</div>
+          </div>
+        `)
+      })
+    }
+
+    // Fit view when selected incident changes
     if (selectedIncident && mapRef.current) {
       mapRef.current.setView([selectedIncident.centroid_lat, selectedIncident.centroid_lon], 15, { animate: true })
     }
   }, [
-    incidents, selectedIncident, layerFloodPolygon, layerClusterRadius,
-    layerWaterSensors, layerTrafficSensors, layerCitizenReports, layerWeatherStations
+    incidents, selectedIncident, earthquakes, googleFlood,
+    layerFloodPolygon, layerClusterRadius, layerWaterSensors,
+    layerTrafficSensors, layerCitizenReports, layerWeatherStations,
+    layerEarthquakes, layerGoogleFlood
   ])
 
   // Time Slider Replay Controller
@@ -311,12 +462,12 @@ export const DashboardPage: React.FC = () => {
     return () => clearInterval(playTimerRef.current)
   }, [isPlaying, playbackSpeed])
 
-  // Run a named scenario
+  // Trigger scenario
   const handleTriggerScenario = async (name: string) => {
     try {
       setScenarioLoading(true)
       const res = await runScenario(name)
-      setLastScenarioMsg(res?.message || `Triggered scenario: ${name}`)
+      setLastScenarioMsg(res?.message || `Triggered: ${name}`)
       await loadData()
     } finally {
       setScenarioLoading(false)
@@ -342,69 +493,63 @@ export const DashboardPage: React.FC = () => {
     return matchesSearch && matchesCause
   })
 
-  // Calculate Indicator Widgets
-  const totalEvents = selectedIncident?.events?.length || 0
   const avgConfidence = selectedIncident ? Math.round(selectedIncident.cause_confidence * 100) : 85
   const untrustedCount = selectedIncident?.events?.filter(e => e.trust < 0.5).length || 0
-  const duplicatesCount = selectedIncident?.events?.filter(e => e.is_duplicate).length || 0
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] bg-[#F5F7FA] dark:bg-slate-950 overflow-hidden font-sans">
       
-      {/* ── 1. Top Indicator Row (Esri ArcGIS Dashboards Style) ──────── */}
-      <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-xs shrink-0 z-20">
+      {/* ── 1. Top Indicator Row & Scenario Controls ────────────────── */}
+      <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-2 flex flex-wrap items-center justify-between gap-3 shadow-xs shrink-0 z-20">
         
         {/* Indicators Bar */}
-        <div className="flex items-center space-x-2 sm:space-x-4 overflow-x-auto py-0.5">
-          {/* Active Incidents */}
-          <div className="flex items-center space-x-2.5 bg-slate-50 dark:bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
+        <div className="flex items-center space-x-2 sm:space-x-3 overflow-x-auto py-0.5">
+          <div className="flex items-center space-x-2 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
             <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></span>
             <div>
-              <div className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 leading-none">Active Incidents</div>
-              <div className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">{incidents.length} Critical</div>
+              <div className="text-[10px] uppercase font-bold text-slate-400 leading-none">Incidents</div>
+              <div className="text-xs font-extrabold text-slate-900 dark:text-white leading-tight">{incidents.length} Active</div>
             </div>
           </div>
 
-          {/* Ingestion Rate */}
-          <div className="flex items-center space-x-2.5 bg-slate-50 dark:bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
-            <Activity className="w-4 h-4 text-sky-600" />
+          <div className="flex items-center space-x-2 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+            <Activity className="w-3.5 h-3.5 text-sky-600" />
             <div>
-              <div className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 leading-none">Ingestion Velocity</div>
-              <div className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">18 events / min</div>
+              <div className="text-[10px] uppercase font-bold text-slate-400 leading-none">Velocity</div>
+              <div className="text-xs font-extrabold text-slate-900 dark:text-white leading-tight">18 ev/min</div>
             </div>
           </div>
 
-          {/* Average Confidence */}
-          <div className="flex items-center space-x-2.5 bg-slate-50 dark:bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
-            <TrendingUp className="w-4 h-4 text-emerald-600" />
+          <div className="flex items-center space-x-2 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+            <Radio className="w-3.5 h-3.5 text-emerald-600" />
             <div>
-              <div className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 leading-none">Inference Confidence</div>
-              <div className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 leading-tight">{avgConfidence}% Noisy-OR</div>
+              <div className="text-[10px] uppercase font-bold text-slate-400 leading-none">Inference</div>
+              <div className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400 leading-tight">{avgConfidence}% Noisy-OR</div>
             </div>
           </div>
 
-          {/* Untrusted Sources Flagged */}
-          <div className="flex items-center space-x-2.5 bg-slate-50 dark:bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
-            <ShieldAlert className="w-4 h-4 text-amber-500" />
+          <div className="flex items-center space-x-2 bg-slate-50 dark:bg-slate-800/80 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+            <ShieldAlert className="w-3.5 h-3.5 text-amber-500" />
             <div>
-              <div className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 leading-none">Untrusted / Tampered</div>
-              <div className="text-sm font-extrabold text-amber-600 dark:text-amber-400 leading-tight">{untrustedCount} Gated</div>
-            </div>
-          </div>
-
-          {/* Duplicates Dropped */}
-          <div className="hidden lg:flex items-center space-x-2.5 bg-slate-50 dark:bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
-            <CheckCircle2 className="w-4 h-4 text-slate-400" />
-            <div>
-              <div className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 leading-none">Deduplicated</div>
-              <div className="text-sm font-extrabold text-slate-700 dark:text-slate-300 leading-tight">3 Packets</div>
+              <div className="text-[10px] uppercase font-bold text-slate-400 leading-none">Untrusted</div>
+              <div className="text-xs font-extrabold text-amber-600 dark:text-amber-400 leading-tight">{untrustedCount} Gated</div>
             </div>
           </div>
         </div>
 
-        {/* Scenario Injection Action Controls */}
+        {/* Action Controls & Data Sources Modal Trigger */}
         <div className="flex items-center space-x-2">
-          <div className="text-xs font-semibold text-slate-500 hidden xl:block">Test Scenarios:</div>
+          {/* Data Sources Attribution Button */}
+          <button
+            onClick={() => setIsDataSourcesModalOpen(true)}
+            className="px-2.5 py-1.5 bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 text-[#0079C1] dark:text-sky-300 text-xs font-semibold rounded-lg border border-sky-200 dark:border-sky-800 flex items-center space-x-1 transition-colors"
+            title="External Data Providers, Attributions & Licenses"
+          >
+            <Database className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Data Sources & Licenses</span>
+          </button>
+
+          {/* Scenario Trigger Dropdown */}
           <select
             disabled={scenarioLoading}
             onChange={(e) => {
@@ -416,9 +561,10 @@ export const DashboardPage: React.FC = () => {
             className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-700 rounded-lg px-2.5 py-1.5 font-medium outline-hidden hover:bg-slate-200 cursor-pointer transition-colors"
             defaultValue=""
           >
-            <option value="" disabled>Select Injection Scenario...</option>
+            <option value="" disabled>Select Test Scenario...</option>
             <option value="drainage_failure">Standard Drainage Failure</option>
-            <option value="heavy_rain">🌧️ Heavy Rain Spike (120mm/hr)</option>
+            <option value="earthquake">🌋 Inject Earthquake (USGS Demo)</option>
+            <option value="heavy_rain">🌧️ Heavy Rain Spike (120mm/h)</option>
             <option value="shuffle_order">Shuffle Event Arrival Order</option>
             <option value="inject_duplicates">Inject Duplicate Packets</option>
             <option value="drop_sensor">Drop Sensor (Simulate Offline)</option>
@@ -441,7 +587,7 @@ export const DashboardPage: React.FC = () => {
 
       {/* Scenario Feedback banner */}
       {lastScenarioMsg && (
-        <div className="bg-sky-50 dark:bg-sky-950/70 border-b border-sky-200 dark:border-sky-800 px-4 py-1.5 text-xs text-sky-800 dark:text-sky-200 flex items-center justify-between">
+        <div className="bg-sky-50 dark:bg-sky-950/70 border-b border-sky-200 dark:border-sky-800 px-4 py-1 text-xs text-sky-800 dark:text-sky-200 flex items-center justify-between">
           <span className="flex items-center space-x-2">
             <Info className="w-3.5 h-3.5 text-sky-600 shrink-0" />
             <span>{lastScenarioMsg}</span>
@@ -450,43 +596,42 @@ export const DashboardPage: React.FC = () => {
         </div>
       )}
 
-      {/* ── 2. Main Dashboard Layout (Full Bleed Map + Left/Right Floating Panels) ── */}
+      {/* ── 2. Main Dashboard (Map + Floating Panels) ───────────────── */}
       <div className="relative flex-1 flex overflow-hidden">
         
-        {/* ── Left Floating Panel (Google Flood Hub style) ─────────────── */}
-        <div className="absolute top-4 left-4 bottom-24 w-80 sm:w-96 z-30 pointer-events-none flex flex-col">
+        {/* ── Left Floating Panel (Incident List) ─────────────────────── */}
+        <div className="absolute top-3 left-4 bottom-24 w-80 sm:w-92 z-30 pointer-events-none flex flex-col">
           <div className="pointer-events-auto bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200/90 dark:border-slate-800 flex flex-col h-full overflow-hidden transition-all">
             
-            {/* Header & Search */}
-            <div className="p-3.5 border-b border-slate-200 dark:border-slate-800 shrink-0">
+            <div className="p-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  Fused Incidents ({filteredIncidents.length})
+                  Incident Feed ({filteredIncidents.length})
                 </span>
-                <span className="text-[11px] font-semibold text-[#0079C1] bg-sky-50 dark:bg-sky-950 px-2 py-0.5 rounded-full">
+                <span className="text-[10px] font-semibold text-[#0079C1] bg-sky-50 dark:bg-sky-950 px-2 py-0.5 rounded-full">
                   Real-time GIS
                 </span>
               </div>
 
-              {/* Search Bar */}
+              {/* Search */}
               <div className="relative mb-2">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
                 <input
                   type="text"
-                  placeholder="Search incidents, streets..."
+                  placeholder="Filter incidents..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full text-xs pl-8 pr-3 py-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 focus:outline-hidden focus:border-[#0079C1]"
                 />
               </div>
 
-              {/* Filter Chips */}
-              <div className="flex items-center space-x-1.5 overflow-x-auto pb-0.5">
-                {['all', 'drainage_failure', 'road_blockage', 'road_accident'].map((f) => (
+              {/* Filter chips */}
+              <div className="flex items-center space-x-1 overflow-x-auto pb-0.5 text-[11px]">
+                {['all', 'drainage_failure', 'earthquake', 'road_blockage', 'road_accident'].map((f) => (
                   <button
                     key={f}
                     onClick={() => setFilterCause(f)}
-                    className={`text-[11px] px-2.5 py-0.5 rounded-full font-medium whitespace-nowrap transition-colors ${
+                    className={`px-2 py-0.5 rounded-full font-medium whitespace-nowrap transition-colors ${
                       filterCause === f
                         ? 'bg-[#0079C1] text-white shadow-xs'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
@@ -499,7 +644,7 @@ export const DashboardPage: React.FC = () => {
             </div>
 
             {/* Incidents Card List */}
-            <div className="flex-1 overflow-y-auto p-2.5 space-y-2">
+            <div className="flex-1 overflow-y-auto p-2 space-y-2">
               {filteredIncidents.map((inc) => {
                 const isSelected = selectedIncident?.id === inc.id
                 return (
@@ -509,14 +654,14 @@ export const DashboardPage: React.FC = () => {
                     className={`p-3 rounded-xl border cursor-pointer transition-all ${
                       isSelected
                         ? 'bg-sky-50/90 dark:bg-sky-950/40 border-[#0079C1] shadow-md ring-1 ring-[#0079C1]'
-                        : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 shadow-xs'
+                        : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 hover:border-slate-300 shadow-xs'
                     }`}
                   >
-                    <div className="flex items-start justify-between mb-1.5">
+                    <div className="flex items-start justify-between mb-1">
                       <span className="text-xs font-bold text-slate-900 dark:text-white leading-snug">
                         {inc.title}
                       </span>
-                      <span className={`text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded shrink-0 ml-2 ${
+                      <span className={`text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded shrink-0 ml-2 ${
                         inc.severity_level === 'critical' ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400' :
                         inc.severity_level === 'high' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400' :
                         'bg-blue-100 text-blue-700'
@@ -529,14 +674,10 @@ export const DashboardPage: React.FC = () => {
                       {inc.explanation}
                     </p>
 
-                    <div className="flex items-center justify-between text-[11px] pt-2 border-t border-slate-100 dark:border-slate-700/60 text-slate-600 dark:text-slate-300">
-                      <div className="flex items-center space-x-1.5">
-                        <span className="font-semibold text-[#0079C1] dark:text-sky-400">
-                          {Math.round(inc.cause_confidence * 100)}% Conf.
-                        </span>
-                        <span className="text-slate-300 dark:text-slate-600">•</span>
-                        <span>{inc.events?.length || 0} signals</span>
-                      </div>
+                    <div className="flex items-center justify-between text-[11px] pt-1.5 border-t border-slate-100 dark:border-slate-700/60 text-slate-600 dark:text-slate-300">
+                      <span className="font-semibold text-[#0079C1] dark:text-sky-400">
+                        {Math.round(inc.cause_confidence * 100)}% {inc.cause.replace('_', ' ')}
+                      </span>
                       <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
                     </div>
                   </div>
@@ -550,20 +691,20 @@ export const DashboardPage: React.FC = () => {
         {/* ── Center Leaflet Map Container ────────────────────────────── */}
         <div ref={mapContainerRef} className="w-full h-full z-10" />
 
-        {/* ── Floating Map Toolbars (Basemap Gallery & Layer Toggles) ─── */}
-        <div className="absolute top-4 right-4 z-30 flex flex-col space-y-2 pointer-events-auto">
+        {/* ── Floating Map Toolbars (Basemap & Grouped Layer Manager) ─── */}
+        <div className="absolute top-3 right-4 z-30 flex flex-col space-y-2 pointer-events-auto">
           
-          {/* Basemap Switcher Widget */}
-          <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl p-2 shadow-lg border border-slate-200 dark:border-slate-800 text-xs flex items-center space-x-1">
-            <Layers className="w-4 h-4 text-slate-500 ml-1" />
-            <span className="text-[11px] font-bold text-slate-400 uppercase mr-1">Basemap:</span>
+          {/* Basemap Gallery Switcher */}
+          <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl p-1.5 shadow-lg border border-slate-200 dark:border-slate-800 text-xs flex items-center space-x-1">
+            <Layers className="w-3.5 h-3.5 text-slate-500 ml-1" />
+            <span className="text-[10px] font-bold text-slate-400 uppercase mr-1">Basemap:</span>
             {(Object.keys(BASEMAPS) as Array<keyof typeof BASEMAPS>).map((key) => (
               <button
                 key={key}
                 onClick={() => setActiveBasemap(key)}
-                className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+                className={`px-2 py-0.5 rounded-md text-[11px] font-semibold transition-colors ${
                   activeBasemap === key
-                    ? 'bg-[#0079C1] text-white'
+                    ? 'bg-[#0079C1] text-white shadow-xs'
                     : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
               >
@@ -572,95 +713,280 @@ export const DashboardPage: React.FC = () => {
             ))}
           </div>
 
-          {/* Layer Visibility Toggles */}
-          <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl p-3 shadow-lg border border-slate-200 dark:border-slate-800 text-xs w-52">
-            <div className="font-bold uppercase tracking-wider text-[10px] text-slate-400 mb-2 flex items-center justify-between">
-              <span>GIS Layers</span>
-              <Eye className="w-3 h-3 text-slate-400" />
+          {/* Grouped Layer Manager */}
+          <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-xl p-3 shadow-xl border border-slate-200 dark:border-slate-800 text-xs w-64 max-h-[75vh] overflow-y-auto space-y-3">
+            <div className="font-extrabold uppercase tracking-wider text-[11px] text-slate-700 dark:text-slate-200 flex items-center justify-between border-b pb-1.5">
+              <span>Layer Manager</span>
+              <Eye className="w-3.5 h-3.5 text-slate-400" />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="flex items-center space-x-2 cursor-pointer text-slate-700 dark:text-slate-200">
-                <input
-                  type="checkbox"
-                  checked={layerFloodPolygon}
-                  onChange={(e) => setLayerFloodPolygon(e.target.checked)}
-                  className="rounded text-[#1A73E8]"
-                />
-                <span className="flex items-center space-x-1.5">
-                  <span className="w-3 h-3 rounded-xs bg-[#1A73E8]/40 border border-[#1A73E8]" />
-                  <span>Flood Extent Polygon</span>
-                </span>
-              </label>
+            {/* Group 1: Incidents & Inundation */}
+            <div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                Incidents & Clusters
+              </div>
+              <div className="space-y-1">
+                <label className="flex items-center space-x-2 cursor-pointer text-slate-700 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={layerFloodPolygon}
+                    onChange={(e) => setLayerFloodPolygon(e.target.checked)}
+                    className="rounded text-[#1A73E8]"
+                  />
+                  <span className="flex items-center space-x-1.5">
+                    <span className="w-2.5 h-2.5 rounded-xs bg-[#1A73E8]/50 border border-[#1A73E8]" />
+                    <span>Flood Extent Polygon</span>
+                  </span>
+                </label>
 
-              <label className="flex items-center space-x-2 cursor-pointer text-slate-700 dark:text-slate-200">
-                <input
-                  type="checkbox"
-                  checked={layerWaterSensors}
-                  onChange={(e) => setLayerWaterSensors(e.target.checked)}
-                  className="rounded text-[#0079C1]"
-                />
-                <span className="flex items-center space-x-1.5">
-                  <Droplets className="w-3.5 h-3.5 text-blue-500" />
-                  <span>Water Level Gauges</span>
-                </span>
-              </label>
+                <label className="flex items-center space-x-2 cursor-pointer text-slate-700 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={layerClusterRadius}
+                    onChange={(e) => setLayerClusterRadius(e.target.checked)}
+                    className="rounded text-sky-600"
+                  />
+                  <span>500m Correlation Radius</span>
+                </label>
+              </div>
+            </div>
 
-              <label className="flex items-center space-x-2 cursor-pointer text-slate-700 dark:text-slate-200">
-                <input
-                  type="checkbox"
-                  checked={layerTrafficSensors}
-                  onChange={(e) => setLayerTrafficSensors(e.target.checked)}
-                  className="rounded text-red-600"
-                />
-                <span className="flex items-center space-x-1.5">
-                  <Car className="w-3.5 h-3.5 text-red-500" />
-                  <span>Traffic & Transit</span>
-                </span>
-              </label>
+            {/* Group 2: Municipal Sensors */}
+            <div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                Sensors & Telemetry
+              </div>
+              <div className="space-y-1">
+                <label className="flex items-center space-x-2 cursor-pointer text-slate-700 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={layerWaterSensors}
+                    onChange={(e) => setLayerWaterSensors(e.target.checked)}
+                    className="rounded text-[#0079C1]"
+                  />
+                  <span className="flex items-center space-x-1.5">
+                    <Droplets className="w-3 h-3 text-blue-500" />
+                    <span>Water Level Gauges</span>
+                  </span>
+                </label>
 
-              <label className="flex items-center space-x-2 cursor-pointer text-slate-700 dark:text-slate-200">
-                <input
-                  type="checkbox"
-                  checked={layerCitizenReports}
-                  onChange={(e) => setLayerCitizenReports(e.target.checked)}
-                  className="rounded text-purple-600"
-                />
-                <span className="flex items-center space-x-1.5">
-                  <PhoneCall className="w-3.5 h-3.5 text-purple-500" />
-                  <span>311 Citizen & Calls</span>
-                </span>
-              </label>
+                <label className="flex items-center space-x-2 cursor-pointer text-slate-700 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={layerTrafficSensors}
+                    onChange={(e) => setLayerTrafficSensors(e.target.checked)}
+                    className="rounded text-red-600"
+                  />
+                  <span className="flex items-center space-x-1.5">
+                    <Car className="w-3 h-3 text-red-500" />
+                    <span>Traffic & Transit Telemetry</span>
+                  </span>
+                </label>
 
-              <label className="flex items-center space-x-2 cursor-pointer text-slate-700 dark:text-slate-200">
-                <input
-                  type="checkbox"
-                  checked={layerWeatherStations}
-                  onChange={(e) => setLayerWeatherStations(e.target.checked)}
-                  className="rounded text-sky-500"
-                />
-                <span className="flex items-center space-x-1.5">
-                  <CloudRain className="w-3.5 h-3.5 text-sky-500" />
-                  <span>Open-Meteo Stations</span>
-                </span>
-              </label>
+                <label className="flex items-center space-x-2 cursor-pointer text-slate-700 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={layerCitizenReports}
+                    onChange={(e) => setLayerCitizenReports(e.target.checked)}
+                    className="rounded text-purple-600"
+                  />
+                  <span className="flex items-center space-x-1.5">
+                    <PhoneCall className="w-3 h-3 text-purple-500" />
+                    <span>311 Citizen & 911 Calls</span>
+                  </span>
+                </label>
+
+                <label className="flex items-center space-x-2 cursor-pointer text-slate-700 dark:text-slate-200">
+                  <input
+                    type="checkbox"
+                    checked={layerWeatherStations}
+                    onChange={(e) => setLayerWeatherStations(e.target.checked)}
+                    className="rounded text-sky-500"
+                  />
+                  <span className="flex items-center space-x-1.5">
+                    <CloudRain className="w-3 h-3 text-sky-500" />
+                    <span>Open-Meteo Weather Stations</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Group 3: External Hazard Layers */}
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+              <div className="text-[10px] font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                <span>External Hazard Layers</span>
+                <span className="text-[9px] bg-amber-100 dark:bg-amber-950 px-1 rounded font-bold">API / Public</span>
+              </div>
+
+              {/* 3.1 USGS Earthquakes */}
+              <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 mb-2 space-y-1.5">
+                <label className="flex items-center justify-between cursor-pointer text-slate-800 dark:text-slate-100 font-semibold">
+                  <span className="flex items-center space-x-1.5">
+                    <input
+                      type="checkbox"
+                      checked={layerEarthquakes}
+                      onChange={(e) => setLayerEarthquakes(e.target.checked)}
+                      className="rounded text-red-600"
+                    />
+                    <span>USGS Earthquakes</span>
+                  </span>
+                  <span className="text-[10px] font-mono text-slate-500">({earthquakes.length})</span>
+                </label>
+
+                {layerEarthquakes && (
+                  <div className="pl-4 pt-1 space-y-1.5 border-t border-slate-200 dark:border-slate-700">
+                    {/* Scope toggle */}
+                    <div className="flex items-center justify-between text-[10px]">
+                      <span className="text-slate-500">Scope:</span>
+                      <div className="inline-flex rounded-md shadow-xs bg-slate-200 dark:bg-slate-700 p-0.5">
+                        <button
+                          onClick={() => setEarthquakeScope('mumbai')}
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            earthquakeScope === 'mumbai' ? 'bg-[#0079C1] text-white' : 'text-slate-600 dark:text-slate-300'
+                          }`}
+                        >
+                          Mumbai Region
+                        </button>
+                        <button
+                          onClick={() => setEarthquakeScope('global')}
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            earthquakeScope === 'global' ? 'bg-[#0079C1] text-white' : 'text-slate-600 dark:text-slate-300'
+                          }`}
+                        >
+                          Global
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Min Magnitude Slider */}
+                    <div className="text-[10px]">
+                      <div className="flex justify-between text-slate-500 mb-0.5">
+                        <span>Min Mag: <strong>M{minMagnitude.toFixed(1)}</strong></span>
+                      </div>
+                      <input
+                        type="range"
+                        min="2.0"
+                        max="7.0"
+                        step="0.5"
+                        value={minMagnitude}
+                        onChange={(e) => setMinMagnitude(parseFloat(e.target.value))}
+                        className="w-full accent-red-600 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Depth Legend */}
+                    <div className="text-[9px] text-slate-500 flex items-center justify-between pt-0.5">
+                      <span className="flex items-center space-x-1">
+                        <span className="w-2 h-2 rounded-full bg-red-500" />
+                        <span>&lt;30km</span>
+                      </span>
+                      <span className="flex items-center space-x-1">
+                        <span className="w-2 h-2 rounded-full bg-amber-500" />
+                        <span>30-70km</span>
+                      </span>
+                      <span className="flex items-center space-x-1">
+                        <span className="w-2 h-2 rounded-full bg-blue-500" />
+                        <span>&gt;70km</span>
+                      </span>
+                    </div>
+
+                    <div className="text-[9px] text-slate-400 italic pt-0.5">
+                      Earthquake data: USGS
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 3.2 Google Flood Hub */}
+              <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 mb-2 space-y-1">
+                <label className="flex items-center justify-between cursor-pointer text-slate-800 dark:text-slate-100 font-semibold">
+                  <span className="flex items-center space-x-1.5">
+                    <input
+                      type="checkbox"
+                      checked={layerGoogleFlood}
+                      onChange={(e) => setLayerGoogleFlood(e.target.checked)}
+                      className="rounded text-sky-600"
+                    />
+                    <span>Upstream River Risk</span>
+                  </span>
+                  <span className="text-[9px] bg-slate-200 dark:bg-slate-700 px-1 rounded text-slate-600 dark:text-slate-300">
+                    Flood Hub
+                  </span>
+                </label>
+
+                <div className="text-[10px] text-slate-500 leading-snug">
+                  Covers river floods, not street drainage.
+                </div>
+
+                {layerGoogleFlood && (
+                  <div className="pt-1.5 border-t border-slate-200 dark:border-slate-700 space-y-1">
+                    {googleFlood?.status === 'live' && googleFlood.gauges.length > 0 ? (
+                      <div className="text-[10px] text-emerald-600 font-bold">
+                        ✓ {googleFlood.gauges.length} river gauges active
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-amber-600">
+                        <span>API in fallback mode (No gauges in basin).</span>
+                        <a
+                          href={googleFlood?.flood_hub_url || 'https://sites.research.google/floods/l/19.076/72.8777/10'}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-1 block text-center px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-[10px] font-bold text-[#0079C1] hover:bg-slate-100"
+                        >
+                          Open Google Flood Hub ↗
+                        </a>
+                      </div>
+                    )}
+                    <div className="text-[9px] text-slate-400 italic">
+                      Flood forecast data: Google Flood Hub, CC BY 4.0
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 3.3 Windy Atmospheric Radar */}
+              <div className="p-2 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-1">
+                <label className="flex items-center justify-between cursor-pointer text-slate-800 dark:text-slate-100 font-semibold">
+                  <span className="flex items-center space-x-1.5">
+                    <input
+                      type="checkbox"
+                      checked={layerWindy}
+                      onChange={(e) => setLayerWindy(e.target.checked)}
+                      className="rounded text-red-500"
+                    />
+                    <span>Windy Atmospheric Radar</span>
+                  </span>
+                  <Wind className="w-3.5 h-3.5 text-red-500" />
+                </label>
+                <div className="text-[9px] text-slate-400 italic">
+                  Wind, rain, clouds, waves • Windy.com
+                </div>
+              </div>
+
             </div>
           </div>
 
         </div>
 
-        {/* ── Right Details Panel (ArcGIS Online Details Widget) ───────── */}
+        {/* ── Windy Overlay Panel (Only active when layerWindy is toggled) ── */}
+        {layerWindy && windyConfig && (
+          <WindyPanel
+            config={windyConfig}
+            onClose={() => setLayerWindy(false)}
+          />
+        )}
+
+        {/* ── Right Diagnostic Panel (ArcGIS Online Style) ─────────────── */}
         {selectedIncident && (
-          <div className="absolute top-20 right-4 bottom-24 w-80 sm:w-96 z-30 pointer-events-none flex flex-col">
+          <div className="absolute top-16 right-4 bottom-24 w-80 sm:w-92 z-30 pointer-events-none flex flex-col">
             <div className="pointer-events-auto bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200/90 dark:border-slate-800 flex flex-col h-full overflow-hidden">
               
-              {/* Header */}
-              <div className="p-4 border-b border-slate-200 dark:border-slate-800 shrink-0 flex items-center justify-between">
+              <div className="p-3.5 border-b border-slate-200 dark:border-slate-800 shrink-0 flex items-center justify-between">
                 <div>
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     Incident Root-Cause Diagnostic
                   </span>
-                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
+                  <h3 className="text-xs font-extrabold text-slate-900 dark:text-white leading-tight">
                     {selectedIncident.title}
                   </h3>
                 </div>
@@ -672,21 +998,20 @@ export const DashboardPage: React.FC = () => {
                 </button>
               </div>
 
-              {/* Scrollable details */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5">
                 
                 {/* 1. Plain-Language Operator Briefing */}
                 <div className="bg-sky-50/70 dark:bg-sky-950/40 border border-sky-200/70 dark:border-sky-800/60 rounded-xl p-3">
                   <div className="flex items-center space-x-1.5 text-xs font-bold text-sky-800 dark:text-sky-300 mb-1">
-                    <Info className="w-4 h-4" />
-                    <span>Plain-Language Operator Briefing</span>
+                    <Info className="w-3.5 h-3.5" />
+                    <span>Operator Incident Briefing</span>
                   </div>
-                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+                  <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line">
                     {selectedIncident.explanation}
                   </p>
                 </div>
 
-                {/* 2. Probable-Cause Ranking (Horizontal Bars) */}
+                {/* 2. Probable Cause Ranking */}
                 <div>
                   <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
                     Probable Cause Ranking (Noisy-OR)
@@ -697,7 +1022,7 @@ export const DashboardPage: React.FC = () => {
                       const isTop = cr.cause === selectedIncident.cause
                       return (
                         <div key={cr.cause} className="text-xs">
-                          <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center justify-between mb-0.5">
                             <span className={`font-semibold ${isTop ? 'text-slate-900 dark:text-white' : 'text-slate-500'}`}>
                               {cr.label}
                             </span>
@@ -721,32 +1046,29 @@ export const DashboardPage: React.FC = () => {
 
                 {/* 3. Weather Corroboration Card */}
                 {weather && (
-                  <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 border border-slate-200 dark:border-slate-700">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
-                        <CloudRain className="w-4 h-4 text-sky-500" />
-                        <span>Open-Meteo Radar Corroboration</span>
+                  <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-2.5 border border-slate-200 dark:border-slate-700 text-xs">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center space-x-1.5 font-bold text-slate-700 dark:text-slate-200">
+                        <CloudRain className="w-3.5 h-3.5 text-sky-500" />
+                        <span>Open-Meteo Corroboration</span>
                       </div>
                       <span className="text-[10px] bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 px-1.5 py-0.5 rounded font-bold">
                         {weather.flood_risk_level} Risk
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 dark:text-slate-300">
-                      <div>Past 24h: <strong>{weather.past_24h_rainfall_mm} mm</strong></div>
-                      <div>Current Rate: <strong>{weather.current_precip_mm} mm/h</strong></div>
+                    <div className="grid grid-cols-2 gap-1 text-[11px] text-slate-600 dark:text-slate-300">
+                      <div>24h Total: <strong>{weather.past_24h_rainfall_mm}mm</strong></div>
+                      <div>Rate: <strong>{weather.current_precip_mm}mm/h</strong></div>
                     </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2 italic">
-                      "{weather.advisory}"
-                    </p>
                   </div>
                 )}
 
-                {/* 4. Evidence Trace & Cryptographic Verification */}
+                {/* 4. Evidence Trace */}
                 <div>
-                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
                     Evidence Signals & Signature Audit ({selectedIncident.events?.length || 0})
                   </div>
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
                     {selectedIncident.events?.map((ev) => (
                       <div
                         key={ev.id}
@@ -758,18 +1080,18 @@ export const DashboardPage: React.FC = () => {
                             <span className="text-[10px] text-slate-400">({ev.source_type})</span>
                           </div>
                           <div className="text-[11px] text-slate-500">
-                            Trust: {(ev.trust * 100).toFixed(0)}% • {ev.payload?.value ? `${ev.payload.value} ${ev.payload?.unit || ''}` : ev.payload?.description || 'Signal registered'}
+                            Trust: {(ev.trust * 100).toFixed(0)}% • {ev.payload?.description || ev.payload?.text || 'Telemetry OK'}
                           </div>
                         </div>
 
                         <div>
                           {ev.signature_verified ? (
-                            <span className="inline-flex items-center space-x-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">
+                            <span className="inline-flex items-center space-x-1 text-[10px] text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded">
                               <ShieldCheck className="w-3 h-3" />
                               <span>HMAC</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-center space-x-1 text-[10px] text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded">
+                            <span className="inline-flex items-center space-x-1 text-[10px] text-amber-600 font-bold bg-amber-50 dark:bg-amber-950/60 px-1.5 py-0.5 rounded">
                               <ShieldAlert className="w-3 h-3" />
                               <span>GATED</span>
                             </span>
@@ -785,29 +1107,29 @@ export const DashboardPage: React.FC = () => {
           </div>
         )}
 
-        {/* ── 3. Bottom Flood-Hub Time Slider & Serial Charts ─────────── */}
+        {/* ── 4. Bottom Flood-Hub Time Scrub Slider & Serial Chart ───── */}
         <div className="absolute bottom-3 left-4 right-4 z-30 pointer-events-none">
-          <div className="pointer-events-auto bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200/90 dark:border-slate-800 p-3 max-w-4xl mx-auto flex flex-col space-y-2">
+          <div className="pointer-events-auto bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-xl border border-slate-200/90 dark:border-slate-800 p-2.5 max-w-4xl mx-auto flex flex-col space-y-1.5">
             
             <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => setIsPlaying(!isPlaying)}
-                  className="w-7 h-7 rounded-lg bg-[#0079C1] hover:bg-sky-600 text-white flex items-center justify-center transition-colors shadow-xs"
+                  className="w-6 h-6 rounded-lg bg-[#0079C1] hover:bg-sky-600 text-white flex items-center justify-center transition-colors shadow-xs"
                 >
-                  {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-white" />}
+                  {isPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3 fill-white" />}
                 </button>
                 <span>Incident Evolution Scrub</span>
-                <span className="text-[11px] text-slate-400 font-mono">[{timelineIndex}% timestamp]</span>
+                <span className="text-[11px] text-slate-400 font-mono">[{timelineIndex}% scrub]</span>
               </div>
 
-              <div className="flex items-center space-x-3 text-xs">
+              <div className="flex items-center space-x-2 text-xs">
                 <span>Speed:</span>
                 {[1, 2, 5].map((spd) => (
                   <button
                     key={spd}
                     onClick={() => setPlaybackSpeed(spd)}
-                    className={`px-1.5 py-0.5 rounded text-[11px] font-bold ${
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
                       playbackSpeed === spd
                         ? 'bg-[#0079C1] text-white'
                         : 'bg-slate-100 dark:bg-slate-800 text-slate-600 hover:bg-slate-200'
@@ -819,19 +1141,17 @@ export const DashboardPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Slider track */}
             <input
               type="range"
               min="0"
               max="100"
               value={timelineIndex}
               onChange={(e) => setTimelineIndex(Number(e.target.value))}
-              className="w-full accent-[#0079C1] cursor-pointer h-2 bg-slate-200 dark:bg-slate-700 rounded-lg"
+              className="w-full accent-[#0079C1] cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
             />
 
-            {/* Serial mini-chart: Confidence Over Time */}
             {selectedIncident?.confidence_history && (
-              <div className="h-14 w-full pt-1">
+              <div className="h-10 w-full pt-0.5">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={selectedIncident.confidence_history}>
                     <defs>
@@ -863,6 +1183,12 @@ export const DashboardPage: React.FC = () => {
         </div>
 
       </div>
+
+      {/* ── 5. Data Sources & Licenses Modal ───────────────────────── */}
+      <DataSourcesModal
+        isOpen={isDataSourcesModalOpen}
+        onClose={() => setIsDataSourcesModalOpen(false)}
+      />
 
     </div>
   )

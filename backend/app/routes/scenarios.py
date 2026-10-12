@@ -127,4 +127,45 @@ async def run_scenario(name: str, db: AsyncSession = Depends(get_db)):
         await process_event(db, evt)
         return {"scenario": name, "message": "Heavy rain event injected (120 mm/hr). Drainage failure confidence should increase."}
 
+    elif name == "earthquake":
+        # Inject simulated seismic event (clearly labeled test provenance)
+        from .hazards import _injected_test_events
+        from ..adapters.usgs import create_demo_test_earthquake
+
+        test_eq = create_demo_test_earthquake(lat=HINDMATA[0] + 0.005, lon=HINDMATA[1] + 0.005, magnitude=5.1)
+        _injected_test_events.clear()
+        _injected_test_events.append(test_eq)
+
+        seismic_evt = Event(
+            source_type="seismic",
+            device_id="USGS-TEST-MUMBAI-EQ",
+            lat=HINDMATA[0] + 0.005,
+            lon=HINDMATA[1] + 0.005,
+            timestamp=now - datetime.timedelta(minutes=3),
+            received_at=now,
+            payload=json.dumps(test_eq["payload"]),
+            trust=0.95,
+            signature_verified=True,
+        )
+        await process_event(db, seismic_evt)
+
+        # Inject supporting tremor citizen report
+        tremor_report = Event(
+            source_type="citizen_report",
+            device_id="CITIZEN-TREMOR-881",
+            lat=HINDMATA[0],
+            lon=HINDMATA[1],
+            timestamp=now - datetime.timedelta(minutes=2),
+            received_at=now,
+            payload=json.dumps({"text": "Strong ground shaking felt across Dadar! Windows rattling, people evacuating buildings.", "language": "en"}),
+            trust=0.75,
+            signature_verified=False,
+        )
+        await process_event(db, tremor_report)
+
+        return {
+            "scenario": name,
+            "message": "Demo test earthquake injected (M5.1, Provenance: test) with citizen tremor reports. Causal intelligence should infer seismic event.",
+        }
+
     return {"error": f"Unknown scenario: {name}"}

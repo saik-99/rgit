@@ -9,26 +9,29 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from .database import engine, Base, SessionLocal
-from .routes import events, incidents, scenarios, sources, stream
+from .routes import events, incidents, scenarios, sources, stream, hazards
 from .routes import weather as weather_route
 from .seed import seed_mumbai_scenario
 from .adapters.open_meteo import fetch_all_weather, USE_LIVE_WEATHER
+from .adapters.usgs import fetch_usgs_feed_sync
 
 logger = logging.getLogger("urban-incident-fusion")
 
 
-async def _weather_poll_loop():
-    """Background task: poll Open-Meteo every 5 minutes if live weather is enabled."""
+async def _hazard_poll_loop():
+    """Background task: poll Open-Meteo and USGS every 5 minutes."""
     while True:
         try:
             if USE_LIVE_WEATHER:
                 logger.info("Polling Open-Meteo for weather updates...")
                 fetch_all_weather()
+            logger.info("Polling USGS for earthquake updates...")
+            fetch_usgs_feed_sync()
             await asyncio.sleep(300)  # 5 minutes
         except asyncio.CancelledError:
             break
         except Exception as e:
-            logger.warning(f"Weather poll error: {e}")
+            logger.warning(f"Hazard poll error: {e}")
             await asyncio.sleep(60)
 
 
@@ -40,12 +43,12 @@ async def lifespan(app: FastAPI):
     # Seed the Mumbai waterlogging demo scenario
     async with SessionLocal() as db:
         await seed_mumbai_scenario(db)
-    # Start weather polling background task
-    weather_task = asyncio.create_task(_weather_poll_loop())
+    # Start hazard polling background task
+    hazard_task = asyncio.create_task(_hazard_poll_loop())
     yield
-    weather_task.cancel()
+    hazard_task.cancel()
     try:
-        await weather_task
+        await hazard_task
     except asyncio.CancelledError:
         pass
 
@@ -72,6 +75,7 @@ app.include_router(scenarios.router, prefix="/api", tags=["Scenarios"])
 app.include_router(sources.router, prefix="/api", tags=["Sources"])
 app.include_router(stream.router, prefix="/api", tags=["Stream"])
 app.include_router(weather_route.router, prefix="/api", tags=["Weather"])
+app.include_router(hazards.router, prefix="/api", tags=["Hazards"])
 
 
 @app.get("/api/health")

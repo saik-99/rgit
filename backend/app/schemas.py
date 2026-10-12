@@ -5,7 +5,7 @@ from datetime import datetime
 
 
 class EventCreate(BaseModel):
-    source_type: str = Field(..., pattern="^(water_level|road_sensor|citizen_report|emergency_call|weather|transit)$")
+    source_type: str = Field(..., pattern="^(water_level|road_sensor|citizen_report|emergency_call|weather|transit|seismic)$")
     lat: float
     lon: float
     timestamp: datetime
@@ -60,4 +60,4 @@ class BatchEventsCreate(BaseModel):
 
 
 class ScenarioRequest(BaseModel):
-    name: str = Field(..., pattern="^(drainage_failure|shuffle_order|inject_duplicates|drop_sensor|conflicting_report|spoofed_sensor|heavy_rain)$")
+    name: str = Field(..., pattern="^(drainage_failure|shuffle_order|inject_duplicates|drop_sensor|conflicting_report|spoofed_sensor|heavy_rain|earthquake)$")
