@@ -1,0 +1,22 @@
+# GitHub CODEOWNERS
+# Replace the placeholder GitHub usernames (e.g. @pro_lead_1) with your actual team usernames.
+
+# Default global owners (Leads oversee everything)
+* @pro_lead_1 @pro_lead_2
+
+# Core architecture & shared configuration (Pro 1)
+/src/core/ @pro_lead_1
+/package.json @pro_lead_1
+/tsconfig.json @pro_lead_1
+/vite.config.* @pro_lead_1
+
+# Shared UI components & design system (Pro 2)
+/src/components/common/ @pro_lead_2
+/src/styles/ @pro_lead_2
+
+# Dedicated Feature Sandboxes (Beginners own their folder)
+/src/features/feature-alpha/ @beginner_user_1 @pro_lead_1
+/src/features/feature-beta/ @beginner_user_2 @pro_lead_2
+
+# Documentation & Presentations
+/docs/ @beginner_user_2 @pro_lead_1
