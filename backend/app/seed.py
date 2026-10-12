@@ -47,6 +47,8 @@ async def seed_mumbai_scenario(db: AsyncSession):
                lat=SION[0], lon=SION[1], trust_score=0.90, hmac_key="secret_sion01", signature_status="verified"),
         Source(device_id="IOT-DRAIN-MALF-09", source_type="water_level", name="Dadar Culvert Pressure Transducer (Drifting)",
                lat=19.0150, lon=72.8490, trust_score=0.28, is_flagged=True, hmac_key="compromised_key", signature_status="unverified"),
+        Source(device_id="ROAD-ANDHERI-01", source_type="road_sensor", name="Andheri WEH Flyover Loop Sensor",
+               lat=19.1136, lon=72.8697, trust_score=0.88, hmac_key="secret_andheri01", signature_status="verified"),
     ]
     for s in sources:
         existing = await db.execute(select(Source).where(Source.device_id == s.device_id))
@@ -206,5 +208,102 @@ async def seed_mumbai_scenario(db: AsyncSession):
             "event_count": idx,
         })
     incident.confidence_history = json.dumps(history)
+
+    # ── Create Second Incident: Road Accident in Andheri ─────────────
+    ANDHERI = (19.1136, 72.8697)
+    incident2 = Incident(
+        title="Road Accident / Collision — Western Express Highway, Andheri",
+        cause="road_accident",
+        cause_confidence=0.0,
+        severity_score=0,
+        severity_level="high",
+        status="active",
+        centroid_lat=ANDHERI[0],
+        centroid_lon=ANDHERI[1],
+        radius_m=350,
+        neighborhood="Andheri East, Western Express Highway, Mumbai",
+        flood_polygon=json.dumps([]),
+        created_at=now - datetime.timedelta(minutes=25),
+        updated_at=now,
+    )
+    db.add(incident2)
+    await db.flush()
+
+    events_data_2 = [
+        {
+            "source_type": "road_sensor", "device_id": "ROAD-ANDHERI-01",
+            "lat": ANDHERI[0], "lon": ANDHERI[1],
+            "timestamp": now - datetime.timedelta(minutes=22),
+            "payload": {"value": 4.5, "unit": "km/h", "occupancy_pct": 94, "description": "Abrupt velocity drop on WEH flyover north-bound"},
+            "trust": 0.88, "signature_verified": True,
+        },
+        {
+            "source_type": "emergency_call", "device_id": "MUMBAI-POLICE-100",
+            "lat": ANDHERI[0] + 0.0005, "lon": ANDHERI[1] - 0.0003,
+            "timestamp": now - datetime.timedelta(minutes=20),
+            "payload": {"text": "Multi-car collision near Gundavali metro station, two lanes blocked, ambulance dispatched", "call_count": 5},
+            "trust": 0.85, "signature_verified": False,
+        },
+        {
+            "source_type": "citizen_report", "device_id": "CITIZEN-APP-8841",
+            "lat": ANDHERI[0] - 0.0004, "lon": ANDHERI[1] + 0.0005,
+            "timestamp": now - datetime.timedelta(minutes=18),
+            "payload": {"text": "Accident on flyover! Heavy jam stretching back towards Airport.", "language": "en"},
+            "trust": 0.60, "signature_verified": False,
+        },
+        {
+            "source_type": "transit", "device_id": "TRANSIT-BEST-402",
+            "lat": ANDHERI[0] + 0.0008, "lon": ANDHERI[1],
+            "timestamp": now - datetime.timedelta(minutes=15),
+            "payload": {"value": 0.0, "unit": "km/h", "status": "halted", "description": "BEST Bus 402 stationary on WEH"},
+            "trust": 0.82, "signature_verified": False,
+        },
+    ]
+
+    for ed in events_data_2:
+        event2 = Event(
+            source_type=ed["source_type"],
+            device_id=ed["device_id"],
+            lat=ed["lat"],
+            lon=ed["lon"],
+            timestamp=ed["timestamp"],
+            received_at=now - datetime.timedelta(minutes=random.randint(0, 5)),
+            payload=json.dumps(ed["payload"]),
+            trust=ed["trust"],
+            signature_verified=ed["signature_verified"],
+            is_duplicate=False,
+            is_anomaly=False,
+            anomaly_zscore=0.0,
+            h3_cell=f"grid_{int(ed['lat'] * 100)}_{int(ed['lon'] * 100)}",
+            incident_id=incident2.id,
+        )
+        db.add(event2)
+
+    await db.flush()
+
+    res2 = await db.execute(select(Event).where(Event.incident_id == incident2.id))
+    all_events_2 = list(res2.scalars().all())
+
+    cause2, conf2, rank2 = infer_cause(all_events_2)
+    sev_score2, sev_lvl2 = compute_severity(cause2, all_events_2, conf2)
+
+    incident2.cause = cause2
+    incident2.cause_confidence = conf2
+    incident2.cause_ranking = json.dumps(rank2)
+    incident2.severity_score = sev_score2
+    incident2.severity_level = sev_lvl2
+    incident2.explanation = generate_explanation(incident2, all_events_2, cause2, conf2, rank2)
+
+    history2 = []
+    sorted_events_2 = sorted(all_events_2, key=lambda e: e.timestamp)
+    for idx in range(1, len(sorted_events_2) + 1):
+        subset = sorted_events_2[:idx]
+        c, conf, _ = infer_cause(subset)
+        history2.append({
+            "t": sorted_events_2[idx - 1].timestamp.isoformat(),
+            "confidence": conf,
+            "event_count": idx,
+        })
+    incident2.confidence_history = json.dumps(history2)
 
     await db.commit()

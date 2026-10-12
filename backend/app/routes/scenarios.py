@@ -109,7 +109,30 @@ async def run_scenario(name: str, db: AsyncSession = Depends(get_db)):
         return {"scenario": name, "message": "Conflicting citizen report injected — confidence should decrease."}
 
     elif name == "spoofed_sensor":
-        # Inject an event with a bad signature / low trust
+        # Ensure device Source record has trust_score=0.2 and is_flagged=True
+        from sqlalchemy import select
+        res = await db.execute(select(Source).where(Source.device_id == "IOT-DRAIN-SPOOF"))
+        src = res.scalars().first()
+        if not src:
+            src = Source(
+                device_id="IOT-DRAIN-SPOOF",
+                source_type="water_level",
+                name="Spoofed Culvert Sensor (Quarantined)",
+                lat=19.0110,
+                lon=72.8515,
+                trust_score=0.2,
+                is_flagged=True,
+                signature_status="unverified",
+                hmac_key="invalid_key",
+            )
+            db.add(src)
+        else:
+            src.trust_score = 0.2
+            src.is_flagged = True
+            src.signature_status = "unverified"
+        await db.commit()
+
+        # Inject an event with trust=0.2, invalid signature
         evt = Event(
             source_type="water_level",
             device_id="IOT-DRAIN-SPOOF",
@@ -118,10 +141,11 @@ async def run_scenario(name: str, db: AsyncSession = Depends(get_db)):
             received_at=now,
             payload=json.dumps({"value": 200.0, "unit": "cm_above_normal", "description": "Suspiciously high reading from unverified device"}),
             signature="invalid_signature_data",
-            trust=0.15,
+            trust=0.2,
+            signature_verified=False,
         )
         await _process_and_broadcast(db, evt)
-        return {"scenario": name, "message": "Spoofed sensor event injected — should be flagged as untrusted."}
+        return {"scenario": name, "message": "Spoofed sensor quarantined (trust=0.2, is_flagged=True) and ignored by cause scoring."}
 
     elif name == "heavy_rain":
         # Inject heavy rainfall weather event

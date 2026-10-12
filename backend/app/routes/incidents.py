@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_db
 from ..models import Incident, Event
-from ..engine import generate_explanation
+from ..engine import generate_explanation, compute_why_not_100_and_check_next
 
 # Ensure repo root is on sys.path for agents import
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -57,6 +57,9 @@ async def get_incident(incident_id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Incident not found")
 
     data = incident.to_dict(include_events=True)
+    why_not_100, check_next = compute_why_not_100_and_check_next(incident, incident.events or [])
+    data["why_not_100"] = why_not_100
+    data["check_next"] = check_next
     cause_ranking = json.loads(incident.cause_ranking) if incident.cause_ranking else []
 
     nodes = []

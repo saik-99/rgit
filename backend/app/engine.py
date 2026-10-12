@@ -258,7 +258,7 @@ def _analyze_weather_evidence(events: list[Event]) -> dict:
     Extract weather signal strength from weather-type events in the cluster.
     Returns a dict with rainfall info and staleness.
     """
-    weather_events = [e for e in events if e.source_type == "weather" and not e.is_duplicate]
+    weather_events = [e for e in events if e.source_type == "weather" and not e.is_duplicate and (e.trust is None or e.trust >= 0.4)]
     has_rainfall = False
     max_rain_mm = 0.0
     rain_24h = 0.0
@@ -318,11 +318,12 @@ def infer_cause(events: list[Event]) -> tuple[str, float, list[dict]]:
     for e in events:
         if e.is_duplicate:
             continue
+        if e.trust is not None and e.trust < 0.4:
+            untrusted_count += 1
+            continue
         st = e.source_type
         source_counts[st] = source_counts.get(st, 0) + 1
-        trust_sum[st] = trust_sum.get(st, 0.0) + e.trust
-        if e.trust < 0.4:
-            untrusted_count += 1
+        trust_sum[st] = trust_sum.get(st, 0.0) + (e.trust if e.trust is not None else 0.5)
 
     # Check for conflicting evidence via payload
     for e in events:
@@ -632,6 +633,10 @@ async def process_event(db: AsyncSession, event: Event) -> Event:
     else:
         event.signature_verified = True  # Trust registered sensors by default
 
+    if source_obj and (source_obj.is_flagged or (source_obj.trust_score is not None and source_obj.trust_score < 0.4)):
+        event.trust = source_obj.trust_score if source_obj.trust_score is not None else 0.2
+        event.signature_verified = False
+
     # 4. Deduplication
     is_dup, dup_of = await check_duplicate(db, event)
     event.is_duplicate = is_dup
@@ -733,7 +738,137 @@ async def process_event(db: AsyncSession, event: Event) -> Event:
         source_obj.last_seen = datetime.datetime.utcnow()
         source_obj.event_count += 1
         source_obj.signature_status = "verified" if event.signature_verified else "failed"
-        source_obj.is_flagged = event.trust < 0.4
+        if event.trust is not None and event.trust < 0.4:
+            source_obj.is_flagged = True
+            if source_obj.trust_score is None:
+                source_obj.trust_score = 0.2
         await db.commit()
 
     return event
+
+
+# ── Confidence Diagnostic & Next Best Action ─────────────────────────────────
+
+def compute_why_not_100_and_check_next(incident: Incident, events: list[Event]) -> tuple[list[str], str]:
+    """
+    Computes:
+    1. why_not_100: list of reasons why confidence isn't 100%
+       (conflicting report, untrusted sensor, missing/offline sensor, few sources).
+    2. check_next: sentence recommending the single missing source type that
+       best separates the top 2 causes (biggest difference in their evidence_weights
+       in CAUSE_VOCABULARY), e.g. "Check road camera at Hindmata: would confirm drainage vs road blockage".
+    """
+    non_dup = [e for e in events if not e.is_duplicate]
+    why_not_100: list[str] = []
+
+    # 1. Conflicting report
+    has_conflict = False
+    for e in non_dup:
+        try:
+            p = json.loads(e.payload) if isinstance(e.payload, str) else (e.payload or {})
+            t = str(p.get("text", p.get("description", ""))).lower()
+            if any(w in t for w in ["no issue", "clear", "no problem", "dry", "fine", "false alarm"]):
+                has_conflict = True
+                break
+        except Exception:
+            pass
+    if has_conflict:
+        why_not_100.append("conflicting report received contradicting incident severity")
+
+    # 2. Untrusted sensor
+    untrusted = [
+        e for e in non_dup
+        if (e.trust is not None and e.trust < 0.4)
+        or (not e.signature_verified and e.source_type not in ("citizen_report", "emergency_call"))
+    ]
+    if untrusted:
+        why_not_100.append("untrusted sensor present with low trust score or unverified signature")
+
+    # 3. Missing/offline sensor
+    missing_list = []
+    if incident.missing_sources:
+        try:
+            missing_list = json.loads(incident.missing_sources) if isinstance(incident.missing_sources, str) else incident.missing_sources
+        except Exception:
+            pass
+
+    top_cause = incident.cause or "drainage_failure"
+    weights = CAUSE_VOCABULARY.get(top_cause, {}).get("evidence_weights", {})
+    present_types = {e.source_type for e in non_dup if (e.trust is None or e.trust >= 0.4)}
+    key_missing = [st for st, w in weights.items() if w >= 0.6 and st not in present_types]
+    if missing_list or key_missing:
+        why_not_100.append("missing/offline sensor in sector reducing corroboration")
+
+    # 4. Few sources
+    if len(present_types) < 3 or len(non_dup) < 4:
+        why_not_100.append("few sources reporting to confirm ground truth")
+
+    # 5. Baseline uncertainty if confidence < 0.99 and no other reason added
+    if not why_not_100 and (incident.cause_confidence or 0.0) < 0.99:
+        why_not_100.append("prior distribution and probabilistic noisy-OR ceiling")
+
+    # ── check_next computation ────────────────────────────────────────────────
+    ranking = []
+    if incident.cause_ranking:
+        try:
+            ranking = json.loads(incident.cause_ranking) if isinstance(incident.cause_ranking, str) else incident.cause_ranking
+        except Exception:
+            pass
+
+    cause1 = top_cause
+    cause2 = None
+    if ranking and len(ranking) >= 2:
+        for r in ranking:
+            c = r.get("cause")
+            if c and c != cause1:
+                cause2 = c
+                break
+
+    if not cause2:
+        for c in sorted(CAUSE_VOCABULARY.keys(), key=lambda k: CAUSE_VOCABULARY[k]["prior"], reverse=True):
+            if c != cause1:
+                cause2 = c
+                break
+    if not cause2:
+        cause2 = "road_blockage"
+
+    w1 = CAUSE_VOCABULARY.get(cause1, {}).get("evidence_weights", {})
+    w2 = CAUSE_VOCABULARY.get(cause2, {}).get("evidence_weights", {})
+    all_vocab_types = set(w1.keys()) | set(w2.keys())
+
+    # Find the missing source type with the biggest difference in evidence_weights
+    missing_types = [st for st in all_vocab_types if st not in present_types]
+    if missing_types:
+        best_st = max(missing_types, key=lambda st: abs(w1.get(st, 0.0) - w2.get(st, 0.0)))
+    else:
+        # If all types are present, choose the one with the biggest weight difference
+        best_st = max(all_vocab_types, key=lambda st: abs(w1.get(st, 0.0) - w2.get(st, 0.0)))
+
+    SOURCE_FRIENDLY_NAMES = {
+        "road_sensor": "road camera",
+        "water_level": "water level sensor",
+        "weather": "weather radar",
+        "emergency_call": "emergency dispatch line",
+        "transit": "transit telemetry",
+        "citizen_report": "citizen report feed",
+        "seismic": "seismograph station",
+    }
+    friendly_src = SOURCE_FRIENDLY_NAMES.get(best_st, best_st.replace("_", " "))
+
+    loc = "Hindmata"
+    if incident.neighborhood:
+        clean_loc = incident.neighborhood.split(",")[0].replace("Junction", "").strip()
+        if clean_loc:
+            loc = clean_loc
+
+    def _short_cause(c: str) -> str:
+        if c == "drainage_failure":
+            return "drainage"
+        return c.replace("_", " ")
+
+    c1_short = _short_cause(cause1)
+    c2_short = _short_cause(cause2)
+
+    check_next = f"Check {friendly_src} at {loc}: would confirm {c1_short} vs {c2_short}"
+
+    return why_not_100, check_next
