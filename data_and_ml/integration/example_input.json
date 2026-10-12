@@ -1,0 +1,83 @@
+[
+  {
+    "event_id": "EVT-INP-001",
+    "source_type": "water_level",
+    "device_id": "IOT-DRAIN-402",
+    "latitude": 19.0112,
+    "longitude": 72.8512,
+    "event_time": "2026-10-12T10:14:00Z",
+    "received_time": "2026-10-12T10:15:30Z",
+    "location": "Hindmata Junction Basin",
+    "payload": {
+      "value": 84.6,
+      "unit": "cm_above_normal",
+      "description": "Rapid water level spike detected at Hindmata nallah drain"
+    },
+    "trust": 0.95,
+    "signature_verified": true
+  },
+  {
+    "event_id": "EVT-INP-002",
+    "source_type": "road_sensor",
+    "device_id": "ROAD-SEG-88",
+    "latitude": 19.0118,
+    "longitude": 72.8508,
+    "event_time": "2026-10-12T10:18:00Z",
+    "received_time": "2026-10-12T10:19:00Z",
+    "location": "Dr. Ambedkar Road, Parel",
+    "payload": {
+      "value": 1.0,
+      "status": "submerged",
+      "description": "Road surface underwater at junction"
+    },
+    "trust": 0.90,
+    "signature_verified": true
+  },
+  {
+    "event_id": "EVT-INP-003",
+    "source_type": "transit",
+    "device_id": "TRANSIT-BUS-104",
+    "latitude": 19.0125,
+    "longitude": 72.8515,
+    "event_time": "2026-10-12T10:22:00Z",
+    "received_time": "2026-10-12T10:22:30Z",
+    "location": "Hindmata Bridge Northbound",
+    "payload": {
+      "value": 3.4,
+      "unit": "km_per_hour",
+      "description": "Route 104 speed collapsed due to waterlogging"
+    },
+    "trust": 0.88,
+    "signature_verified": true
+  },
+  {
+    "event_id": "EVT-INP-004",
+    "source_type": "citizen_report",
+    "device_id": "CITIZEN-311-9921",
+    "latitude": 19.0110,
+    "longitude": 72.8518,
+    "event_time": "2026-10-12T10:11:00Z",
+    "received_time": "2026-10-12T10:35:00Z",
+    "location": "Hindmata Sidewalk",
+    "payload": {
+      "text": "Water gushing out of storm drain onto street, cars stranded."
+    },
+    "trust": 0.60,
+    "signature_verified": false
+  },
+  {
+    "event_id": "EVT-INP-005",
+    "source_type": "citizen_report",
+    "device_id": "APP-USER-314",
+    "latitude": 19.0120,
+    "longitude": 72.8505,
+    "event_time": "2026-10-12T10:25:00Z",
+    "received_time": "2026-10-12T10:26:00Z",
+    "location": "Hindmata Junction Viewpoint",
+    "payload": {
+      "text": "Road is clear from my window, no delays at all."
+    },
+    "trust": 0.20,
+    "signature_verified": false
+  }
+]

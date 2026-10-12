@@ -1,0 +1,163 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.11 87bfad18",
+  "osm3s": {
+    "timestamp_osm_base": "2026-10-12T13:23:51Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+    {
+      "type": "node",
+      "id": 357620244,
+      "lat": 40.7377778,
+      "lon": -74.0008333,
+      "tags": {
+        "addr:city": "New York",
+        "addr:housenumber": "30",
+        "addr:postcode": "10011",
+        "addr:street": "7th Avenue",
+        "amenity": "hospital",
+        "check_date": "2024-01-11",
+        "emergency": "yes",
+        "gnis:feature_id": "2082882",
+        "healthcare": "hospital",
+        "name": "Lenox Health Greenwich Village",
+        "opening_hours": "24/7",
+        "operator": "Northwell Health",
+        "operator:type": "private",
+        "operator:wikidata": "Q7056650",
+        "operator:wikipedia": "en:Northwell Health",
+        "phone": "+1 646 665 6000",
+        "website": "https://www.northwell.edu/lenox-health-greenwich-village"
+      }
+    },
+    {
+      "type": "node",
+      "id": 357642745,
+      "lat": 40.7318799,
+      "lon": -73.9845807,
+      "tags": {
+        "addr:city": "New York",
+        "addr:housenumber": "310",
+        "addr:postcode": "10003",
+        "addr:street": "East 14th Street",
+        "amenity": "hospital",
+        "emergency": "no",
+        "gnis:feature_id": "2420559",
+        "healthcare": "hospital",
+        "healthcare:speciality": "ophthalmology;otolaryngology",
+        "name": "New York Eye and Ear Infirmary of Mount Sinai",
+        "operator": "Mount Sinai Health System",
+        "operator:wikidata": "Q5165549",
+        "phone": "+1 212 979 4000",
+        "short_name": "NYEE",
+        "website": "https://www.nyee.edu/",
+        "wikidata": "Q7013496",
+        "wikipedia": "en:New York Eye and Ear Infirmary"
+      }
+    },
+    {
+      "type": "node",
+      "id": 368047094,
+      "lat": 40.7131355,
+      "lon": -73.9611384,
+      "tags": {
+        "addr:state": "NY",
+        "amenity": "fire_station",
+        "ele": "16",
+        "gnis:feature_id": "2081124",
+        "name": "New York Engine Company 221",
+        "source": "USGS Geonames"
+      }
+    },
+    {
+      "type": "node",
+      "id": 368047441,
+      "lat": 40.7568252,
+      "lon": -73.9709356,
+      "tags": {
+        "addr:city": "New York",
+        "addr:housenumber": "165",
+        "addr:postcode": "10022",
+        "addr:state": "NY",
+        "addr:street": "East 51st Street",
+        "amenity": "fire_station",
+        "check_date": "2024-03-22",
+        "ele": "12",
+        "gnis:feature_id": "2084040",
+        "name": "FDNY Engine 8/Ladder 2/Battalion 8",
+        "operator": "New York City Fire Department",
+        "operator:wikidata": "Q283207",
+        "operator:wikipedia": "en:New York City Fire Department"
+      }
+    },
+    {
+      "type": "node",
+      "id": 368047840,
+      "lat": 40.7130823,
+      "lon": -73.9611665,
+      "tags": {
+        "addr:state": "NY",
+        "amenity": "fire_station",
+        "ele": "16",
+        "gnis:feature_id": "2081185",
+        "name": "New York Ladder Company 104",
+        "source": "USGS Geonames"
+      }
+    },
+    {
+      "type": "node",
+      "id": 1581175993,
+      "lat": 40.7464784,
+      "lon": -73.9717941,
+      "tags": {
+        "addr:city": "New York",
+        "addr:housenumber": "339",
+        "addr:postcode": "10016",
+        "addr:street": "East 38th Street",
+        "amenity": "hospital",
+        "emergency": "no",
+        "entrance": "yes",
+        "healthcare": "hospital",
+        "healthcare:speciality": "surgery",
+        "name": "NYU Langone Outpatient Surgery Center",
+        "operator": "NYU Langone Health",
+        "operator:wikidata": "Q6956114",
+        "operator:wikipedia": "en:NYU Langone Health",
+        "phone": "+1 212 263 1515",
+        "website": "https://nyulangone.org/locations/nyu-langone-outpatient-surgery-center"
+      }
+    },
+    {
+      "type": "node",
+      "id": 2567563414,
+      "lat": 40.7165272,
+      "lon": -73.9836131,
+      "tags": {
+        "addr:city": "New York",
+        "addr:housenumber": "25",
+        "addr:postcode": "10002",
+        "addr:state": "NY",
+        "addr:street": "Pitt Street",
+        "amenity": "fire_station",
+        "name": "FDNY Engine 15/Ladder 18/Battalion 4",
+        "operator": "New York City Fire Department",
+        "operator:wikidata": "Q283207",
+        "operator:wikipedia": "en:New York City Fire Department"
+      }
+    },
+    {
+      "type": "node",
+      "id": 14219942455,
+      "lat": 40.7458912,
+      "lon": -73.9816024,
+      "tags": {
+        "amenity": "hospital",
+        "healthcare": "hospital",
+        "level": "6",
+        "name": "Hassenfeild Children's Hospital at NYU Lagone",
+        "website": "https://nyulangone.org/locations/hassenfeld-childrens-hospital"
+      }
+    }
+  ]
+}
