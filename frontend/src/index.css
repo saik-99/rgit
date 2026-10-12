@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-esri-blue: #0079C1;
+    --color-esri-navy: #1B3A57;
+    --color-esri-accent: #35AC46;
+    --color-flood-blue: #1A73E8;
+    --color-status-green: #34A853;
+    --color-status-amber: #FBBC04;
+    --color-status-red: #D93025;
+  }
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+h1, h2, h3, .font-display {
+  font-family: 'Outfit', 'Inter', sans-serif;
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.03);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.3);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 116, 139, 0.5);
+}
+
+/* Marker pulse animations */
+@keyframes markerPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(217, 48, 37, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 16px rgba(217, 48, 37, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(217, 48, 37, 0);
+  }
+}
+
+@keyframes markerPulseAmber {
+  0% {
+    box-shadow: 0 0 0 0 rgba(251, 188, 4, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 14px rgba(251, 188, 4, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(251, 188, 4, 0);
+  }
+}
+
+.pulse-critical {
+  animation: markerPulse 1.8s infinite;
+}
+
+.pulse-amber {
+  animation: markerPulseAmber 2.2s infinite;
+}
+
+/* Leaflet map custom override */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  font-family: inherit;
+  z-index: 10;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  padding: 0;
+  overflow: hidden;
+}
+
+.leaflet-popup-content {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.dark .leaflet-popup-content-wrapper {
+  background-color: #1E293B;
+  color: #F8FAFC;
+}
+
+.dark .leaflet-popup-tip {
+  background-color: #1E293B;
+}
