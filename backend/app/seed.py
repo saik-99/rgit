@@ -45,6 +45,8 @@ async def seed_mumbai_scenario(db: AsyncSession):
                lat=MILAN_SUBWAY[0], lon=MILAN_SUBWAY[1], trust_score=0.87, hmac_key="secret_milan01", signature_status="verified"),
         Source(device_id="IOT-DRAIN-SION01", source_type="water_level", name="Sion Station Drainage Sensor",
                lat=SION[0], lon=SION[1], trust_score=0.90, hmac_key="secret_sion01", signature_status="verified"),
+        Source(device_id="IOT-DRAIN-MALF-09", source_type="water_level", name="Dadar Culvert Pressure Transducer (Drifting)",
+               lat=19.0150, lon=72.8490, trust_score=0.28, is_flagged=True, hmac_key="compromised_key", signature_status="unverified"),
     ]
     for s in sources:
         existing = await db.execute(select(Source).where(Source.device_id == s.device_id))

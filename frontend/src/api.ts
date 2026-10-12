@@ -178,6 +178,18 @@ export const MOCK_SOURCES: SourceItem[] = [
     signature_status: 'verified',
     last_seen: new Date().toISOString(),
   },
+  {
+    id: 6,
+    device_id: 'IOT-DRAIN-MALF-09',
+    source_type: 'water_level',
+    name: 'Dadar Culvert Pressure Transducer (Drifting)',
+    lat: 19.0150,
+    lon: 72.8490,
+    trust_score: 0.28,
+    is_flagged: true,
+    signature_status: 'unverified',
+    last_seen: new Date().toISOString(),
+  },
 ]
 
 export const MOCK_WEATHER: WeatherMetrics = {
