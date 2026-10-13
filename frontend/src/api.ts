@@ -1156,4 +1156,115 @@ export async function sendIncidentAlert(
   }
 }
 
+export interface CopilotPayload {
+  message?: string
+  mode?: 'chat' | 'summarize_area' | 'summarize_incident'
+  city?: string
+  incident_id?: string
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>
+}
+
+export interface CopilotAction {
+  type: string
+  incident_id: string
+  priority?: string
+  status?: string
+}
+
+export interface CopilotResponse {
+  reply: string
+  action: CopilotAction | null
+  source: 'groq' | 'fallback'
+  suggestions: string[]
+}
+
+const INDIAN_HELPLINES = [
+  { name: 'National Emergency', number: '112', desc: 'All-in-one emergency helpline' },
+  { name: 'Police', number: '100', desc: 'Police control room' },
+  { name: 'Fire', number: '101', desc: 'Fire & rescue service' },
+  { name: 'Ambulance', number: '108', desc: 'Emergency medical response' },
+  { name: 'Disaster Management', number: '1078', desc: 'NDRF / Disaster authority' },
+  { name: 'Women Helpline', number: '1091', desc: 'Emergency response for women' },
+  { name: 'Child Helpline', number: '1098', desc: 'Child protection service' },
+]
+
+async function getOfflineCopilotFallback(payload: CopilotPayload): Promise<CopilotResponse> {
+  const msg = (payload.message || '').toLowerCase()
+  const city = (payload.city || 'mumbai').toLowerCase()
+  const incidents = await getSnapshotIncidents()
+  const cityIncidents = incidents.filter(i => (i.city || '').toLowerCase() === city)
+  const selected = payload.incident_id ? incidents.find(i => i.incident_id === payload.incident_id) : null
+
+  if (msg.includes('helpline') || msg.includes('police') || msg.includes('ambulance') || msg.includes('fire') || msg.includes('emergency number')) {
+    const list = INDIAN_HELPLINES.map(h => `• **${h.name}**: **${h.number}** (${h.desc})`).join('\n')
+    return {
+      reply: `• **Official Emergency Helplines (India)**:\n${list}\n• *City-specific numbers: verify with local authority.*`,
+      action: null,
+      source: 'fallback',
+      suggestions: ['Summarize this area', 'What are the highest priority incidents?'],
+    }
+  }
+
+  if (payload.mode === 'summarize_incident' || (selected && msg.includes('summarize') && !msg.includes('area'))) {
+    if (selected) {
+      return {
+        reply: `• **${selected.title}** (${selected.severity_level || 'Medium'} severity, ${Math.round((selected.cause_confidence || 0) * 100)}% confidence)\n• **Primary Cause**: ${(selected.primary_cause || 'Unknown').replace(/_/g, ' ')}\n• **Summary**: ${selected.summary || selected.explanation || 'Sensor telemetry correlated.'}\n• **Check Next**: ${selected.check_next || 'Inspect drainage nodes and flow sensors.'}\n• **Nearest Help**: Station 0.8 km, Hospital 1.2 km, Fire station 1.4 km`,
+        action: null,
+        source: 'fallback',
+        suggestions: ['What should I check next?', 'Why is confidence not higher?', 'Assign this area highest priority'],
+      }
+    }
+  }
+
+  if (payload.mode === 'summarize_area' || msg.includes('summarize this area') || msg.includes('area')) {
+    const high = cityIncidents.filter(i => (i.severity_level || '').toLowerCase() === 'high').length
+    const med = cityIncidents.filter(i => (i.severity_level || '').toLowerCase() === 'medium').length
+    const low = cityIncidents.filter(i => (i.severity_level || '').toLowerCase() === 'low').length
+    const top3 = cityIncidents.slice(0, 3).map(i => `  - **${i.incident_id}**: ${i.title} (${i.severity_level})`).join('\n')
+    return {
+      reply: `• **${city.toUpperCase()} Area Intelligence**:\n• Severity breakdown: **${high} High**, **${med} Medium**, **${low} Low** incidents.\n• Top Priorities:\n${top3}`,
+      action: null,
+      source: 'fallback',
+      suggestions: ['Assign this area highest priority', 'Show emergency helplines', 'Nearest hospital'],
+    }
+  }
+
+  if (msg.includes('assign') || msg.includes('priority') || msg.includes('highest priority') || msg.includes('dispatch')) {
+    const target = selected || cityIncidents[0] || incidents[0]
+    const targetId = target ? target.incident_id : 'INCIDENT-001'
+    return {
+      reply: `• Recommend escalating **${targetId}** to **P1 (Highest Priority)** based on causal drivers and sensor consensus.\n• ACTION required: Confirm P1 priority escalation.`,
+      action: { type: 'set_priority', incident_id: targetId, priority: 'P1' },
+      source: 'fallback',
+      suggestions: ['What should I check next?', 'Show emergency helplines'],
+    }
+  }
+
+  const top3 = cityIncidents.slice(0, 3).map(i => `• **${i.incident_id}**: ${i.title} (${i.severity_level})`).join('\n')
+  return {
+    reply: `Offline mode. Active incidents in ${city.toUpperCase()}:\n${top3}`,
+    action: null,
+    source: 'fallback',
+    suggestions: ['Summarize this area', 'Emergency helplines', 'Nearest hospital'],
+  }
+}
+
+export async function sendCopilotMessage(payload: CopilotPayload): Promise<CopilotResponse> {
+  if (isOffline) {
+    return getOfflineCopilotFallback(payload)
+  }
+  try {
+    const res = await fetchWithTimeout(`${API_BASE}/v1/copilot`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) throw new Error(`Copilot returned ${res.status}`)
+    return await res.json()
+  } catch (err) {
+    console.warn('Copilot backend unreachable, using offline fallback:', err)
+    return getOfflineCopilotFallback(payload)
+  }
+}
+
 

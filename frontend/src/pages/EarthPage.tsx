@@ -7,6 +7,7 @@ import { LiveTicker } from '../components/earth/LiveTicker'
 import { SearchBar } from '../components/earth/SearchBar'
 import { AllIndiaStatsCard } from '../components/earth/AllIndiaStatsCard'
 import { IntroOverlay } from '../components/earth/IntroOverlay'
+import { CopilotWidget } from '../components/earth/CopilotWidget'
 import {
   fetchV1Incidents,
   fetchV1Infrastructure,
@@ -90,6 +91,7 @@ export const EarthPage: React.FC = () => {
 
   // New High Incident Pop toast & bounce animation state
   const [newHighToast, setNewHighToast] = useState<{ show: boolean; incident: V1Incident; title: string } | null>(null)
+  const [copilotHasNewHigh, setCopilotHasNewHigh] = useState<boolean>(false)
 
   // Tour State
   const [isTouring, setIsTouring] = useState<boolean>(false)
@@ -271,6 +273,7 @@ export const EarthPage: React.FC = () => {
               if (isHigh) {
                 playTwoToneChime()
                 setNewHighToast({ show: true, incident: inc, title: inc.title })
+                setCopilotHasNewHigh(true)
               }
             }
           } catch {
@@ -761,6 +764,28 @@ export const EarthPage: React.FC = () => {
           incidentsCount={incidents.length}
           onStartEnter={handleStartEnter}
           isExiting={isIntroExiting}
+        />
+      )}
+
+      {/* 12. Floating AI Copilot Widget */}
+      {uiRevealed && (
+        <CopilotWidget
+          activeCity={activeCity}
+          selectedIncident={selectedIncident}
+          incidents={filteredIncidents}
+          isIncidentOpen={Boolean(selectedIncident)}
+          onSelectIncident={inc => {
+            setSelectedIncident(inc)
+            if (inc.city) selectCity(inc.city.toLowerCase())
+          }}
+          onUpdateOperatorStatus={(incidentId, status) => {
+            setOperatorStatuses(prev => ({
+              ...prev,
+              [incidentId]: { status, timestamp: Date.now() },
+            }))
+          }}
+          hasNewHighIncident={copilotHasNewHigh}
+          onClearNewHighBadge={() => setCopilotHasNewHigh(false)}
         />
       )}
     </div>
