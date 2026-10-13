@@ -16,6 +16,7 @@ import {
   fetchWeather,
   fetchEarthquakes,
   fetchGoogleFlood,
+  getWsUrl,
   type V1Incident,
   type EarthquakeItem,
 } from '../api'
@@ -256,8 +257,7 @@ export const EarthPage: React.FC = () => {
     function connect() {
       if ((import.meta as any).env?.VITE_OFFLINE === 'true') return
       try {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-        const wsUrl = `${protocol}//${window.location.host}/api/stream`
+        const wsUrl = getWsUrl('/stream')
         ws = new WebSocket(wsUrl)
 
         ws.onmessage = event => {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Radio } from 'lucide-react'
 import { formatSourceType, formatCause } from '../../utils/formatters'
 import { Label } from '../../ui/primitives'
+import { getWsUrl } from '../../api'
 
 interface TickerItem {
   id: string
@@ -124,10 +125,7 @@ export const LiveTicker: React.FC<LiveTickerProps> = ({ activeCity, incidents })
     function connect() {
       if ((import.meta as any).env?.VITE_OFFLINE === 'true') return
       try {
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-        const host = window.location.host
-        const wsUrl = `${protocol}//${host}/api/stream`
-
+        const wsUrl = getWsUrl('/stream')
         ws = new WebSocket(wsUrl)
 
         ws.onmessage = event => {

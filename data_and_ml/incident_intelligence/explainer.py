@@ -8,7 +8,7 @@ Generates structured narratives detailing:
 - Concrete operational recommendations
 """
 
-from typing import List, Dict, Any
+from typing import Tuple, List, Dict, Optional, Any
 from .models import NormalizedEvent, IncidentReport
 
 

@@ -5,7 +5,38 @@ import type {
 
 export type { EarthquakeItem, GoogleFloodResponse, WindyConfig, DataSourceItem, WeatherMetrics }
 
-const API_BASE = '/api'
+const rawApiUrl = (import.meta as any).env?.VITE_API_URL
+export const API_BASE = (() => {
+  if (!rawApiUrl) return '/api'
+  const trimmed = String(rawApiUrl).trim().replace(/\/+$/, '')
+  return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`
+})()
+
+export function getWsUrl(subpath: string = '/stream'): string {
+  const cleanSubpath = subpath.startsWith('/') ? subpath : `/${subpath}`
+  if (API_BASE.startsWith('http://') || API_BASE.startsWith('https://')) {
+    const wsBase = API_BASE.startsWith('https://')
+      ? API_BASE.replace(/^https:\/\//, 'wss://')
+      : API_BASE.replace(/^http:\/\//, 'ws://')
+    return `${wsBase}${cleanSubpath}`
+  }
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${window.location.host}${API_BASE}${cleanSubpath}`
+}
+
+export async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 8000): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    })
+    return res
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}
 
 export const MOCK_INCIDENTS: Incident[] = [
   {
@@ -251,7 +282,7 @@ export const MOCK_WINDY: WindyConfig = {
 
 export async function fetchIncidents(): Promise<Incident[]> {
   try {
-    const res = await fetch(`${API_BASE}/incidents`)
+    const res = await fetchWithTimeout(`${API_BASE}/incidents`)
     if (!res.ok) throw new Error('Failed to fetch')
     return await res.json()
   } catch (err) {
@@ -262,7 +293,7 @@ export async function fetchIncidents(): Promise<Incident[]> {
 
 export async function fetchIncident(id: number): Promise<Incident> {
   try {
-    const res = await fetch(`${API_BASE}/incidents/${id}`)
+    const res = await fetchWithTimeout(`${API_BASE}/incidents/${id}`)
     if (!res.ok) throw new Error('Failed to fetch')
     return await res.json()
   } catch (err) {
@@ -273,7 +304,7 @@ export async function fetchIncident(id: number): Promise<Incident> {
 
 export async function fetchSources(): Promise<SourceItem[]> {
   try {
-    const res = await fetch(`${API_BASE}/sources`)
+    const res = await fetchWithTimeout(`${API_BASE}/sources`)
     if (!res.ok) throw new Error('Failed to fetch')
     return await res.json()
   } catch (err) {
@@ -299,9 +330,9 @@ export async function fetchWeather(city?: string): Promise<WeatherMetrics> {
   }
 
   try {
-    const res = await fetch(`${API_BASE}/weather/hindmata`)
+    const res = await fetchWithTimeout(`${API_BASE}/weather/hindmata`)
     if (!res.ok) {
-      const resAlt = await fetch(`${API_BASE}/weather`)
+      const resAlt = await fetchWithTimeout(`${API_BASE}/weather`)
       if (!resAlt.ok) throw new Error('Failed to fetch weather')
       const altData = await resAlt.json()
       if (altData.locations && altData.locations.hindmata) {
@@ -359,7 +390,7 @@ function normalizeWeatherPayload(w: any, rd: any): WeatherMetrics {
 
 export async function fetchEarthquakes(scope = 'mumbai', minMag = 2.5): Promise<{ earthquakes: EarthquakeItem[]; attribution: string; count: number }> {
   try {
-    const res = await fetch(`${API_BASE}/hazards/earthquakes?scope=${scope}&min_magnitude=${minMag}`)
+    const res = await fetchWithTimeout(`${API_BASE}/hazards/earthquakes?scope=${scope}&min_magnitude=${minMag}`)
     if (!res.ok) throw new Error('Failed to fetch earthquakes')
     return await res.json()
   } catch (err) {
@@ -374,7 +405,7 @@ export async function fetchEarthquakes(scope = 'mumbai', minMag = 2.5): Promise<
 
 export async function fetchGoogleFlood(): Promise<GoogleFloodResponse> {
   try {
-    const res = await fetch(`${API_BASE}/hazards/google-flood`)
+    const res = await fetchWithTimeout(`${API_BASE}/hazards/google-flood`)
     if (!res.ok) throw new Error('Failed to fetch Google flood data')
     return await res.json()
   } catch (err) {
@@ -385,7 +416,7 @@ export async function fetchGoogleFlood(): Promise<GoogleFloodResponse> {
 
 export async function fetchWindyConfig(): Promise<WindyConfig> {
   try {
-    const res = await fetch(`${API_BASE}/hazards/windy-config`)
+    const res = await fetchWithTimeout(`${API_BASE}/hazards/windy-config`)
     if (!res.ok) throw new Error('Failed to fetch Windy config')
     return await res.json()
   } catch (err) {
@@ -396,7 +427,7 @@ export async function fetchWindyConfig(): Promise<WindyConfig> {
 
 export async function fetchDataSources(): Promise<DataSourceItem[]> {
   try {
-    const res = await fetch(`${API_BASE}/hazards/data-sources`)
+    const res = await fetchWithTimeout(`${API_BASE}/hazards/data-sources`)
     if (!res.ok) throw new Error('Failed to fetch data sources')
     const json = await res.json()
     return json.sources
@@ -459,7 +490,7 @@ export async function fetchDataSources(): Promise<DataSourceItem[]> {
 
 export async function runScenario(name: string): Promise<any> {
   try {
-    const res = await fetch(`${API_BASE}/scenarios/${name}`, { method: 'POST' })
+    const res = await fetchWithTimeout(`${API_BASE}/scenarios/${name}`, { method: 'POST' })
     if (!res.ok) throw new Error('Scenario run failed')
     return await res.json()
   } catch (err) {
@@ -470,7 +501,7 @@ export async function runScenario(name: string): Promise<any> {
 
 export async function resetDatabase(): Promise<any> {
   try {
-    const res = await fetch(`${API_BASE}/reset`, { method: 'POST' })
+    const res = await fetchWithTimeout(`${API_BASE}/reset`, { method: 'POST' })
     if (!res.ok) throw new Error('Reset failed')
     return await res.json()
   } catch (err) {
@@ -832,7 +863,7 @@ async function getSnapshotEventsGeoJSON(): Promise<any> {
 export async function fetchV1Cities(): Promise<V1CityItem[]> {
   if (!isOffline) {
     try {
-      const res = await fetch(`${API_BASE}/v1/cities`)
+      const res = await fetchWithTimeout(`${API_BASE}/v1/cities`)
       if (res.ok) return await res.json()
     } catch (err) {
       console.warn('Backend unavailable, using snapshot v1 cities:', err)
@@ -849,7 +880,7 @@ export async function fetchV1EventsGeoJSON(params?: { city?: string; from?: stri
       if (params?.from) q.set('from', params.from)
       if (params?.to) q.set('to', params.to)
       const url = `${API_BASE}/v1/events/geojson${q.toString() ? `?${q.toString()}` : ''}`
-      const res = await fetch(url)
+      const res = await fetchWithTimeout(url)
       if (res.ok) return await res.json()
     } catch (err) {
       console.warn('Backend unavailable, using snapshot geojson:', err)
@@ -871,7 +902,7 @@ export async function fetchV1EventsGeoJSON(params?: { city?: string; from?: stri
 export async function fetchV1Stats(): Promise<any> {
   if (!isOffline) {
     try {
-      const res = await fetch(`${API_BASE}/v1/stats`)
+      const res = await fetchWithTimeout(`${API_BASE}/v1/stats`)
       if (res.ok) return await res.json()
     } catch (err) {
       console.warn('Backend unavailable, using snapshot v1 stats:', err)
@@ -887,7 +918,7 @@ export async function fetchV1Incidents(city?: string, severity?: string): Promis
       if (city && city !== 'all') params.set('city', city)
       if (severity && severity !== 'all') params.set('severity', severity)
       const url = `${API_BASE}/v1/incidents${params.toString() ? `?${params.toString()}` : ''}`
-      const res = await fetch(url)
+      const res = await fetchWithTimeout(url)
       if (res.ok) return await res.json()
     } catch (err) {
       console.warn('Backend unavailable, using snapshot v1 incidents:', err)
@@ -909,7 +940,7 @@ export async function fetchV1Incidents(city?: string, severity?: string): Promis
 export async function fetchV1Incident(id: string): Promise<V1Incident> {
   if (!isOffline) {
     try {
-      const res = await fetch(`${API_BASE}/v1/incidents/${id}`)
+      const res = await fetchWithTimeout(`${API_BASE}/v1/incidents/${id}`)
       if (res.ok) return await res.json()
     } catch (err) {
       console.warn(`Backend unavailable, using snapshot incident for ${id}:`, err)
@@ -922,7 +953,7 @@ export async function fetchV1Incident(id: string): Promise<V1Incident> {
 
 export async function fetchV1Replay(id: string): Promise<any> {
   try {
-    const res = await fetch(`${API_BASE}/v1/incidents/${id}/replay`)
+    const res = await fetchWithTimeout(`${API_BASE}/v1/incidents/${id}/replay`)
     if (!res.ok) throw new Error('Failed to fetch v1 replay')
     return await res.json()
   } catch (err) {
@@ -974,7 +1005,7 @@ export async function fetchV1Replay(id: string): Promise<any> {
 
 export async function fetchV1Briefing(id: string): Promise<any> {
   try {
-    const res = await fetch(`${API_BASE}/v1/incidents/${id}/briefing`)
+    const res = await fetchWithTimeout(`${API_BASE}/v1/incidents/${id}/briefing`)
     if (!res.ok) throw new Error('Failed to fetch v1 briefing')
     return await res.json()
   } catch (err) {
@@ -998,7 +1029,7 @@ export async function fetchV1Infrastructure(city?: string): Promise<any> {
   try {
     const params = new URLSearchParams()
     if (city) params.set('city', city)
-    const res = await fetch(`${API_BASE}/v1/layers/infrastructure?${params.toString()}`)
+    const res = await fetchWithTimeout(`${API_BASE}/v1/layers/infrastructure?${params.toString()}`)
     if (!res.ok) throw new Error('Failed to fetch infrastructure layer')
     return await res.json()
   } catch (err) {
@@ -1035,7 +1066,7 @@ export async function fetchV1Rainfall(city?: string): Promise<any> {
   try {
     const params = new URLSearchParams()
     if (city) params.set('city', city)
-    const res = await fetch(`${API_BASE}/v1/layers/rainfall?${params.toString()}`)
+    const res = await fetchWithTimeout(`${API_BASE}/v1/layers/rainfall?${params.toString()}`)
     if (!res.ok) throw new Error('Failed to fetch rainfall layer')
     return await res.json()
   } catch (err) {
@@ -1066,7 +1097,7 @@ export async function fetchV1Rainfall(city?: string): Promise<any> {
 
 export async function postV1Event(event: any): Promise<any> {
   try {
-    const res = await fetch(`${API_BASE}/v1/events`, {
+    const res = await fetchWithTimeout(`${API_BASE}/v1/events`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(event),
@@ -1081,7 +1112,7 @@ export async function postV1Event(event: any): Promise<any> {
 
 export async function fetchAlertRecipients(): Promise<string[]> {
   try {
-    const res = await fetch(`${API_BASE}/v1/alert-recipients`)
+    const res = await fetchWithTimeout(`${API_BASE}/v1/alert-recipients`)
     if (!res.ok) throw new Error('Failed to fetch recipients')
     const data = await res.json()
     return data.recipients || []
@@ -1092,7 +1123,7 @@ export async function fetchAlertRecipients(): Promise<string[]> {
 
 export async function updateAlertRecipients(recipients: string[]): Promise<string[]> {
   try {
-    const res = await fetch(`${API_BASE}/v1/alert-recipients`, {
+    const res = await fetchWithTimeout(`${API_BASE}/v1/alert-recipients`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ recipients }),
@@ -1113,7 +1144,7 @@ export async function sendIncidentAlert(
     return { status: 'offline', sent: false }
   }
   try {
-    const res = await fetch(`${API_BASE}/v1/incidents/${incidentId}/alert`, {
+    const res = await fetchWithTimeout(`${API_BASE}/v1/incidents/${incidentId}/alert`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ recipients }),
