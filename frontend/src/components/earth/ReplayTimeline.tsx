@@ -102,7 +102,7 @@ export const ReplayTimeline: React.FC<ReplayTimelineProps> = ({ incident, onClos
           </button>
           <button
             onClick={() => setIsPlaying(prev => !prev)}
-            className="p-2 rounded-xl bg-[var(--accent)] hover:opacity-90 text-slate-950 font-semibold shadow-md transition-opacity"
+            className="p-2 rounded-xl bg-slate-950/90 border border-cyan-500/60 text-white font-semibold shadow-[0_0_24px_rgba(34,211,238,0.25)] hover:border-cyan-400 hover:shadow-[0_0_32px_rgba(34,211,238,0.4)] active:scale-[0.98] transition-all"
           >
             {isPlaying ? <Pause className="w-4 h-4 stroke-[1.5]" /> : <Play className="w-4 h-4 stroke-[1.5] fill-current" />}
           </button>

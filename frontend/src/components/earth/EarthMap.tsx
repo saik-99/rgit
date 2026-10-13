@@ -151,6 +151,16 @@ export const EarthMap: React.FC<EarthMapProps> = ({
   const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map())
   const earthquakeMarkersRef = useRef<maplibregl.Marker[]>([])
   const floodMarkersRef = useRef<maplibregl.Marker[]>([])
+  const rotatingRef = useRef<boolean>(false)
+  const rotRafRef = useRef<number | null>(null)
+
+  const stopRotation = () => {
+    rotatingRef.current = false
+    if (rotRafRef.current !== null) {
+      cancelAnimationFrame(rotRafRef.current)
+      rotRafRef.current = null
+    }
+  }
 
   // Store mutable refs for event listeners and functions
   const activeCityRef = useRef<string>(activeCity)
@@ -823,35 +833,35 @@ export const EarthMap: React.FC<EarthMapProps> = ({
       syncMarkers()
     })
 
-    // Slow rotation (~1 deg/s) during intro
-    let rotSpeed = isIntro ? 1.0 : 0
-    let rotRafId: number | null = null
-    let isRotating = isIntro
+    // Start rotation loop only when isIntro is true
     const prefersReducedMotion =
       typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
     if (isIntro && !prefersReducedMotion) {
+      rotatingRef.current = true
       let lastTime = performance.now()
+      const speed = 1.0
+
       const rotateStep = (now: number) => {
-        if (!mapRef.current || !isRotating) return
+        if (!mapRef.current || !rotatingRef.current) return
         const dt = (now - lastTime) / 1000
         lastTime = now
 
-        if (rotSpeed > 0) {
-          const currCenter = mapRef.current.getCenter()
-          mapRef.current.easeTo({
-            center: [currCenter.lng - rotSpeed * dt, currCenter.lat],
-            duration: 0,
-            easing: t => t,
-          })
-        }
+        const currCenter = mapRef.current.getCenter()
+        mapRef.current.setCenter([currCenter.lng - speed * dt, currCenter.lat])
 
-        if (isRotating) {
-          rotRafId = requestAnimationFrame(rotateStep)
+        if (rotatingRef.current) {
+          rotRafRef.current = requestAnimationFrame(rotateStep)
         }
       }
-      rotRafId = requestAnimationFrame(rotateStep)
+      rotRafRef.current = requestAnimationFrame(rotateStep)
     }
+
+    // Stop rotation on user interaction
+    map.on('mousedown', stopRotation)
+    map.on('touchstart', stopRotation)
+    map.on('wheel', stopRotation)
+    map.on('dragstart', stopRotation)
 
     // Zoom and move listeners
     map.on('zoomend', syncMarkers)
@@ -860,8 +870,7 @@ export const EarthMap: React.FC<EarthMapProps> = ({
     mapRef.current = map
 
     return () => {
-      isRotating = false
-      if (rotRafId) cancelAnimationFrame(rotRafId)
+      stopRotation()
       markersRef.current.forEach(m => m.remove())
       markersRef.current.clear()
       mapReadyRef.current = false
@@ -869,48 +878,47 @@ export const EarthMap: React.FC<EarthMapProps> = ({
     }
   }, [])
 
+  // Stop rotation when isIntro becomes false
+  useEffect(() => {
+    if (!isIntro) {
+      stopRotation()
+    }
+  }, [isIntro])
+
   // Intro Exit Sequence
   useEffect(() => {
     if (!isIntroExiting || !mapRef.current || !mapReadyRef.current) return
     const map = mapRef.current
+    stopRotation()
+
     const prefersReducedMotion =
       typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-    // Step 2: Stop rotation smoothly over 400ms
-    const startStop = performance.now()
-    const slowRaf = (now: number) => {
-      const elapsed = now - startStop
-      const progress = Math.min(1, elapsed / 400)
-      if (progress < 1) {
-        requestAnimationFrame(slowRaf)
-      } else {
-        // Step 3: flyTo India
-        const duration = prefersReducedMotion ? 0 : 3000
-        map.flyTo({
-          center: [79.0, 22.5],
-          zoom: 4.3,
-          pitch: prefersReducedMotion ? 0 : 35,
-          bearing: 0,
-          duration,
-          curve: 1.4,
-          essential: true,
-        })
+    const duration = prefersReducedMotion ? 0 : 3000
+    map.flyTo({
+      center: [79.0, 22.5],
+      zoom: 4.3,
+      pitch: prefersReducedMotion ? 0 : 35,
+      bearing: 0,
+      duration,
+      curve: 1.4,
+      essential: true,
+    })
 
-        const onFlightDone = () => {
-          onFlyToIndiaCompleteRef.current?.()
-          syncMarkers()
-        }
-
-        map.once('moveend', onFlightDone)
-      }
+    const onFlightDone = () => {
+      onFlyToIndiaCompleteRef.current?.()
+      syncMarkers()
     }
-    requestAnimationFrame(slowRaf)
+
+    map.once('moveend', onFlightDone)
   }, [isIntroExiting])
 
   // 2. Camera Flight when view changes
   useEffect(() => {
     const map = mapRef.current
-    if (!map || isIntroRef.current) return
+    if (!map) return
+
+    stopRotation()
 
     const norm = activeCity.toLowerCase().trim()
     const isAll = norm === 'all' || norm === 'all-india' || norm === 'all india'
@@ -958,6 +966,8 @@ export const EarthMap: React.FC<EarthMapProps> = ({
   useEffect(() => {
     const map = mapRef.current
     if (!map || !tourIncident) return
+
+    stopRotation()
 
     const lat = tourIncident.centroid_lat
     const lon = tourIncident.centroid_lon

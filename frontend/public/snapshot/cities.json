@@ -1,0 +1,58 @@
+[
+  {
+    "city": "mumbai",
+    "name": "Mumbai",
+    "lat": 19.121742,
+    "lon": 72.862475,
+    "incident_count": 191,
+    "high_count": 48
+  },
+  {
+    "city": "nagpur",
+    "name": "Nagpur",
+    "lat": 21.146703,
+    "lon": 79.086895,
+    "incident_count": 223,
+    "high_count": 40
+  },
+  {
+    "city": "bengaluru",
+    "name": "Bengaluru",
+    "lat": 12.970724,
+    "lon": 77.597094,
+    "incident_count": 179,
+    "high_count": 37
+  },
+  {
+    "city": "delhi",
+    "name": "Delhi",
+    "lat": 28.609941,
+    "lon": 77.221817,
+    "incident_count": 180,
+    "high_count": 34
+  },
+  {
+    "city": "guwahati",
+    "name": "Guwahati",
+    "lat": 26.137415,
+    "lon": 91.744432,
+    "incident_count": 198,
+    "high_count": 31
+  },
+  {
+    "city": "hyderabad",
+    "name": "Hyderabad",
+    "lat": 17.380345,
+    "lon": 78.491224,
+    "incident_count": 197,
+    "high_count": 27
+  },
+  {
+    "city": "pune",
+    "name": "Pune",
+    "lat": 18.510793,
+    "lon": 73.85498,
+    "incident_count": 159,
+    "high_count": 29
+  }
+]

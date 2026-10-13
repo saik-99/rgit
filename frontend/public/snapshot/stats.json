@@ -1,0 +1,174 @@
+{
+  "total_events": 3218,
+  "total_incidents": 1327,
+  "by_city": {
+    "mumbai": {
+      "total_events": 574,
+      "incidents": 191,
+      "real": 135,
+      "synthetic": 439,
+      "high_count": 48
+    },
+    "nagpur": {
+      "total_events": 483,
+      "incidents": 223,
+      "real": 9,
+      "synthetic": 474,
+      "high_count": 40
+    },
+    "bengaluru": {
+      "total_events": 438,
+      "incidents": 179,
+      "real": 0,
+      "synthetic": 438,
+      "high_count": 37
+    },
+    "delhi": {
+      "total_events": 426,
+      "incidents": 180,
+      "real": 0,
+      "synthetic": 426,
+      "high_count": 34
+    },
+    "guwahati": {
+      "total_events": 462,
+      "incidents": 198,
+      "real": 0,
+      "synthetic": 462,
+      "high_count": 31
+    },
+    "hyderabad": {
+      "total_events": 445,
+      "incidents": 197,
+      "real": 0,
+      "synthetic": 445,
+      "high_count": 27
+    },
+    "pune": {
+      "total_events": 390,
+      "incidents": 159,
+      "real": 0,
+      "synthetic": 390,
+      "high_count": 29
+    }
+  },
+  "totals_per_city": {
+    "mumbai": {
+      "total_events": 574,
+      "incidents": 191,
+      "real": 135,
+      "synthetic": 439,
+      "high_count": 48
+    },
+    "nagpur": {
+      "total_events": 483,
+      "incidents": 223,
+      "real": 9,
+      "synthetic": 474,
+      "high_count": 40
+    },
+    "bengaluru": {
+      "total_events": 438,
+      "incidents": 179,
+      "real": 0,
+      "synthetic": 438,
+      "high_count": 37
+    },
+    "delhi": {
+      "total_events": 426,
+      "incidents": 180,
+      "real": 0,
+      "synthetic": 426,
+      "high_count": 34
+    },
+    "guwahati": {
+      "total_events": 462,
+      "incidents": 198,
+      "real": 0,
+      "synthetic": 462,
+      "high_count": 31
+    },
+    "hyderabad": {
+      "total_events": 445,
+      "incidents": 197,
+      "real": 0,
+      "synthetic": 445,
+      "high_count": 27
+    },
+    "pune": {
+      "total_events": 390,
+      "incidents": 159,
+      "real": 0,
+      "synthetic": 390,
+      "high_count": 29
+    }
+  },
+  "by_taxonomy": {
+    "WEATHER.HEAVY_RAIN": 260,
+    "FLOOD.URBAN_WATERLOGGING": 853,
+    "TRANSIT.RAIL_DISRUPTION": 175,
+    "TRANSIT.BUS_DIVERSION": 2,
+    "PUBLIC.SERVICE_CLOSURE": 4,
+    "WEATHER.SEVERE_WEATHER_WARNING": 8,
+    "EMERGENCY.CASUALTY_REPORT": 33,
+    "TRANSIT.AIRPORT_DISRUPTION": 1,
+    "TRANSIT.METRO_DISRUPTION": 3,
+    "TRAFFIC.CONGESTION": 266,
+    "TRAFFIC.ROAD_CLOSURE": 46,
+    "TRAFFIC.ROAD_REOPENED": 26,
+    "EMERGENCY.RESPONSE_DEPLOYED": 23,
+    "FLOOD.RIVER_DANGER_LEVEL": 1,
+    "STRUCTURE.BUILDING_COLLAPSE": 90,
+    "TRAFFIC.ACCIDENT": 443,
+    "INCIDENT.RESOLVED": 207,
+    "FLOOD.WATER_LEVEL_EXCEEDANCE": 92,
+    "TRAFFIC.LANE_CLOSURE": 78,
+    "STRUCTURE.FIRE_REPORT": 13,
+    "POWER.OUTAGE_REPORT": 239,
+    "POWER.OUTAGE_ADVISORY": 27,
+    "POWER.RESTORED": 42,
+    "TRANSIT.SERVICE_RESTORED": 42,
+    "TRAFFIC.SIGNAL_OUTAGE": 200,
+    "TRAFFIC.SIGNAL_RESTORED": 42,
+    "FLOOD.LAKE_OR_RESERVOIR_OVERFLOW": 1,
+    "STRUCTURE.BRIDGE_COLLAPSE": 1
+  },
+  "totals_per_taxonomy": {
+    "WEATHER.HEAVY_RAIN": 260,
+    "FLOOD.URBAN_WATERLOGGING": 853,
+    "TRANSIT.RAIL_DISRUPTION": 175,
+    "TRANSIT.BUS_DIVERSION": 2,
+    "PUBLIC.SERVICE_CLOSURE": 4,
+    "WEATHER.SEVERE_WEATHER_WARNING": 8,
+    "EMERGENCY.CASUALTY_REPORT": 33,
+    "TRANSIT.AIRPORT_DISRUPTION": 1,
+    "TRANSIT.METRO_DISRUPTION": 3,
+    "TRAFFIC.CONGESTION": 266,
+    "TRAFFIC.ROAD_CLOSURE": 46,
+    "TRAFFIC.ROAD_REOPENED": 26,
+    "EMERGENCY.RESPONSE_DEPLOYED": 23,
+    "FLOOD.RIVER_DANGER_LEVEL": 1,
+    "STRUCTURE.BUILDING_COLLAPSE": 90,
+    "TRAFFIC.ACCIDENT": 443,
+    "INCIDENT.RESOLVED": 207,
+    "FLOOD.WATER_LEVEL_EXCEEDANCE": 92,
+    "TRAFFIC.LANE_CLOSURE": 78,
+    "STRUCTURE.FIRE_REPORT": 13,
+    "POWER.OUTAGE_REPORT": 239,
+    "POWER.OUTAGE_ADVISORY": 27,
+    "POWER.RESTORED": 42,
+    "TRANSIT.SERVICE_RESTORED": 42,
+    "TRAFFIC.SIGNAL_OUTAGE": 200,
+    "TRAFFIC.SIGNAL_RESTORED": 42,
+    "FLOOD.LAKE_OR_RESERVOIR_OVERFLOW": 1,
+    "STRUCTURE.BRIDGE_COLLAPSE": 1
+  },
+  "real_vs_synthetic": {
+    "real": 144,
+    "synthetic": 3074
+  },
+  "by_status": {
+    "active": 970,
+    "resolved": 357
+  }
+}

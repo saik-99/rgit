@@ -193,7 +193,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
         <button
           onClick={() => togglePanel('incidents')}
           title="Active Incidents"
-          className={`p-2.5 rounded-xl transition-all duration-200 ${
+          className={`w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all duration-200 ${
             activePanel === 'incidents'
               ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40 shadow-lg shadow-rose-950/50'
               : 'text-slate-400 hover:text-white hover:bg-white/10'
@@ -205,7 +205,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
         <button
           onClick={() => togglePanel('weather')}
           title="Weather Radar (Windy.com)"
-          className={`p-2.5 rounded-xl transition-all duration-200 ${
+          className={`w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all duration-200 ${
             activePanel === 'weather'
               ? 'bg-sky-500/20 text-sky-400 border border-sky-500/40 shadow-lg shadow-sky-950/50'
               : 'text-slate-400 hover:text-white hover:bg-white/10'
@@ -217,7 +217,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
         <button
           onClick={() => togglePanel('flood')}
           title="Google Flood Hub"
-          className={`p-2.5 rounded-xl transition-all duration-200 ${
+          className={`w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all duration-200 ${
             activePanel === 'flood'
               ? 'bg-blue-500/20 text-blue-400 border border-blue-500/40 shadow-lg shadow-blue-950/50'
               : 'text-slate-400 hover:text-white hover:bg-white/10'
@@ -229,7 +229,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
         <button
           onClick={() => togglePanel('earthquakes')}
           title="USGS Earthquakes"
-          className={`p-2.5 rounded-xl transition-all duration-200 ${
+          className={`w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all duration-200 ${
             activePanel === 'earthquakes'
               ? 'bg-orange-500/20 text-orange-400 border border-orange-500/40 shadow-lg shadow-orange-950/50'
               : 'text-slate-400 hover:text-white hover:bg-white/10'
@@ -241,7 +241,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
         <button
           onClick={() => togglePanel('scenarios')}
           title="Test Scenarios"
-          className={`p-2.5 rounded-xl transition-all duration-200 ${
+          className={`w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all duration-200 ${
             activePanel === 'scenarios'
               ? 'bg-purple-500/20 text-purple-400 border border-purple-500/40 shadow-lg shadow-purple-950/50'
               : 'text-slate-400 hover:text-white hover:bg-white/10'
@@ -253,7 +253,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
         <button
           onClick={() => togglePanel('sources')}
           title="Data Sources & Licenses"
-          className={`p-2.5 rounded-xl transition-all duration-200 ${
+          className={`w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all duration-200 ${
             activePanel === 'sources'
               ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 shadow-lg shadow-emerald-950/50'
               : 'text-slate-400 hover:text-white hover:bg-white/10'
@@ -265,7 +265,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
         <button
           onClick={() => togglePanel('layers')}
           title="Map Layers"
-          className={`p-2.5 rounded-xl transition-all duration-200 ${
+          className={`w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all duration-200 ${
             activePanel === 'layers'
               ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shadow-lg shadow-cyan-950/50'
               : 'text-slate-400 hover:text-white hover:bg-white/10'
@@ -277,7 +277,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
         <button
           onClick={() => togglePanel('filters')}
           title="Telemetry Filters"
-          className={`p-2.5 rounded-xl transition-all duration-200 ${
+          className={`w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-all duration-200 ${
             activePanel === 'filters'
               ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-lg shadow-amber-950/50'
               : 'text-slate-400 hover:text-white hover:bg-white/10'
@@ -298,13 +298,13 @@ export const LeftRail: React.FC<LeftRailProps> = ({
             transition={{ duration: 0.18 }}
             className={`bg-slate-950/90 backdrop-blur-2xl border border-white/10 rounded-2xl shadow-2xl p-4 text-white flex flex-col ${
               activePanel === 'weather'
-                ? 'w-84 sm:w-[460px] h-[calc(100vh-6rem)]'
-                : 'w-84 sm:w-96 max-h-[85vh]'
+                ? 'w-84 sm:w-[460px] h-[calc(100vh-196px)]'
+                : 'w-84 sm:w-96 max-h-[calc(100vh-196px)]'
             }`}
           >
             {/* Header */}
             <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3 flex-shrink-0">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+              <h3 className="text-[12px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)] flex items-center gap-2">
                 {activePanel === 'incidents' && <AlertTriangle className="w-4 h-4 text-rose-400" />}
                 {activePanel === 'weather' && <CloudRain className="w-4 h-4 text-sky-400" />}
                 {activePanel === 'flood' && <Waves className="w-4 h-4 text-blue-400" />}
@@ -390,12 +390,12 @@ export const LeftRail: React.FC<LeftRailProps> = ({
                 </div>
 
                 {/* Iframe Viewport: flex: 1 with height 100%, no fixed height */}
-                <div className="rounded-xl overflow-hidden border border-white/10 bg-black flex-1 min-h-0 w-full relative">
+                <div className="rounded-xl overflow-hidden border border-white/10 bg-black flex-1 h-full min-h-0 w-full relative">
                   <iframe
                     key={activeCity}
                     src={windyUrl}
                     title="Windy Weather Radar"
-                    className="w-full h-full border-0 block"
+                    className="w-full h-full flex-1 border-0 block"
                     style={{ width: '100%', height: '100%', minHeight: '100%' }}
                     loading="lazy"
                   />
@@ -720,7 +720,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
                   <div>
                     <div className="flex items-center gap-2">
                       <SlidersHorizontal className="w-4 h-4 text-amber-400" />
-                      <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+                      <span className="text-[12px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)]">
                         Telemetry Filters
                       </span>
                     </div>
@@ -743,7 +743,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
 
                 {/* 1. Category Chips */}
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                  <div className="text-[12px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)] mb-2">
                     Event Categories
                   </div>
                   <div className="grid grid-cols-2 gap-1.5">
@@ -777,7 +777,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
 
                 {/* 2. Severity Level Chips */}
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                  <div className="text-[12px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)] mb-2">
                     Incident Severity
                   </div>
                   <div className="flex items-center gap-1.5">
@@ -807,7 +807,7 @@ export const LeftRail: React.FC<LeftRailProps> = ({
 
                 {/* 3. Date Range Slider: two overlapping range inputs on one track (start + end handles, start can't pass end), accent bar between them, both dates shown */}
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
+                  <div className="text-[12px] font-medium uppercase tracking-[0.08em] text-[var(--text-muted)] mb-2 flex items-center justify-between">
                     <span>Date Range</span>
                     <span className="font-mono text-[var(--accent)] text-[10px]">
                       {formatEventTime(new Date(filters.dateRange[0]).toISOString(), 'date_only')}

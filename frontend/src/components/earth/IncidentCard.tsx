@@ -495,7 +495,7 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
             <button
               onClick={handleSendAlert}
               disabled={isSendingAlert || selectedRecipients.length === 0}
-              className="w-full py-2 px-3 rounded-lg bg-[var(--accent)] text-slate-950 font-semibold text-xs flex items-center justify-center gap-1.5 transition-opacity disabled:opacity-40"
+              className="w-full h-11 rounded-xl bg-slate-950/90 border border-cyan-500/60 text-white font-semibold text-sm shadow-[0_0_24px_rgba(34,211,238,0.25)] hover:border-cyan-400 hover:shadow-[0_0_32px_rgba(34,211,238,0.4)] active:scale-[0.98] flex items-center justify-center gap-1.5 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Send className="w-3.5 h-3.5" />
               <span>{isSendingAlert ? 'Sending alert...' : 'Dispatch alert'}</span>
@@ -819,10 +819,10 @@ export const IncidentCard: React.FC<IncidentCardProps> = ({
         <button
           onClick={() => onAdvanceOperatorStatus?.(incident.incident_id)}
           disabled={operatorStatus === 'Resolved'}
-          className={`w-full py-2.5 rounded-xl font-semibold text-xs transition-opacity ${
+          className={`w-full h-11 rounded-xl font-semibold text-sm flex items-center justify-center transition-all ${
             operatorStatus === 'Resolved'
               ? 'bg-emerald-500/20 text-[var(--ok)] border border-emerald-500/40 cursor-default'
-              : 'bg-[var(--accent)] text-slate-950 hover:opacity-90'
+              : 'bg-slate-950/90 border border-cyan-500/60 text-white shadow-[0_0_24px_rgba(34,211,238,0.25)] hover:border-cyan-400 hover:shadow-[0_0_32px_rgba(34,211,238,0.4)] active:scale-[0.98]'
           }`}
         >
           {nextStatusLabel}

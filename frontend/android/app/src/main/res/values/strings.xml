@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">UrbanFusion</string>
+    <string name="title_activity_main">UrbanFusion</string>
+    <string name="package_name">com.urbanfusion.app</string>
+    <string name="custom_url_scheme">com.urbanfusion.app</string>
+</resources>

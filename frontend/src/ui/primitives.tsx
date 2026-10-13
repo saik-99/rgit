@@ -9,16 +9,14 @@ export const Label: React.FC<{
   children: React.ReactNode
   className?: string
 }> = ({ children, className = '' }) => {
-  let content = children
-  if (typeof children === 'string') {
-    content = toSentenceCase(children)
-  }
   return (
-    <span className={`text-[11px] text-[var(--text-muted)] font-normal tracking-normal select-none ${className}`}>
-      {content}
+    <span className={`text-[12px] uppercase text-[var(--text-muted)] font-medium tracking-[0.08em] select-none ${className}`}>
+      {children}
     </span>
   )
 }
+
+export const SectionLabel = Label
 
 export const Stat: React.FC<{
   value: React.ReactNode
@@ -84,11 +82,11 @@ export const IconButton: React.FC<{
     onClick={onClick}
     title={title}
     disabled={disabled}
-    className={`w-8 h-8 rounded-lg flex items-center justify-center border transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
+    className={`w-11 h-11 min-w-[44px] min-h-[44px] rounded-xl flex items-center justify-center border transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
       active
         ? 'border-[var(--accent)] text-[var(--accent)] bg-cyan-500/10'
         : 'border-[var(--border)] text-[var(--text-muted)] hover:text-[var(--accent)] hover:border-[var(--accent)] hover:bg-white/5'
-    } [&>svg]:w-4 [&>svg]:h-4 [&>svg]:stroke-[1.5] ${className}`}
+    } [&>svg]:w-5 [&>svg]:h-5 [&>svg]:stroke-[1.5] ${className}`}
   >
     {icon || children}
   </button>

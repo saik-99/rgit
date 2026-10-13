@@ -254,6 +254,7 @@ export const EarthPage: React.FC = () => {
     let reconnectTimeout: any = null
 
     function connect() {
+      if ((import.meta as any).env?.VITE_OFFLINE === 'true') return
       try {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
         const wsUrl = `${protocol}//${window.location.host}/api/stream`
@@ -582,21 +583,17 @@ export const EarthPage: React.FC = () => {
           !uiRevealed
             ? 'opacity-0 -translate-y-3 pointer-events-none'
             : 'opacity-100 translate-y-0 pointer-events-auto delay-[240ms]'
-        } ${
-          selectedIncident
-            ? 'max-w-[560px] 2xl:max-w-[850px]'
-            : 'max-w-[620px] 2xl:max-w-none'
-        }`}
+        } max-w-[calc(100vw-32px)] sm:max-w-[680px] md:max-w-[800px] lg:max-w-[920px]`}
       >
         {/* Horizontally scrollable city chips */}
-        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar min-w-0 flex-1 whitespace-nowrap">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar min-w-0 flex-1 whitespace-nowrap scroll-smooth touch-pan-x py-0.5">
           {CITY_CHIPS.map(c => {
             const isActive = activeCity.toLowerCase() === c.id.toLowerCase()
             return (
               <button
                 key={c.id}
                 onClick={() => selectCity(c.id)}
-                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all whitespace-nowrap shrink-0 flex items-center gap-1.5 ${
+                className={`min-h-[36px] min-w-[44px] px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap shrink-0 flex items-center justify-center gap-1.5 ${
                   isActive
                     ? 'bg-[var(--accent)] text-slate-950 font-semibold shadow-md'
                     : 'text-[var(--text-muted)] hover:text-[var(--text)] hover:bg-white/5'

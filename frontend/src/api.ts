@@ -728,97 +728,196 @@ export interface V1CityItem {
   high_count: number
 }
 
-export async function fetchV1Cities(): Promise<V1CityItem[]> {
-  try {
-    const res = await fetch(`${API_BASE}/v1/cities`)
-    if (!res.ok) throw new Error('Failed to fetch v1 cities')
-    return await res.json()
-  } catch (err) {
-    console.warn('Backend unavailable, using fallback v1 cities:', err)
-    return [
-      { city: 'mumbai', name: 'Mumbai', lat: 19.121742, lon: 72.862475, incident_count: 191, high_count: 48 },
-      { city: 'pune', name: 'Pune', lat: 18.510793, lon: 73.854980, incident_count: 159, high_count: 29 },
-      { city: 'nagpur', name: 'Nagpur', lat: 21.146703, lon: 79.086895, incident_count: 223, high_count: 40 },
-      { city: 'delhi', name: 'Delhi', lat: 28.609941, lon: 77.221817, incident_count: 180, high_count: 34 },
-      { city: 'bengaluru', name: 'Bengaluru', lat: 12.970724, lon: 77.597094, incident_count: 179, high_count: 37 },
-      { city: 'hyderabad', name: 'Hyderabad', lat: 17.380345, lon: 78.491224, incident_count: 197, high_count: 27 },
-      { city: 'guwahati', name: 'Guwahati', lat: 26.137415, lon: 91.744432, incident_count: 198, high_count: 31 },
-    ]
+export const isOffline = (import.meta as any).env?.VITE_OFFLINE === 'true'
+
+let cachedIncidentsSnapshot: V1Incident[] | null = null
+let cachedCitiesSnapshot: V1CityItem[] | null = null
+let cachedStatsSnapshot: any = null
+let cachedEventsSnapshot: any = null
+
+async function fetchSnapshotFile(filename: string): Promise<any> {
+  const urls = [
+    `/snapshot/${filename}`,
+    `./snapshot/${filename}`,
+    `snapshot/${filename}`,
+  ]
+  for (const url of urls) {
+    try {
+      const res = await fetch(url)
+      if (res.ok) {
+        return await res.json()
+      }
+    } catch {}
   }
+  throw new Error(`Could not load snapshot file: ${filename}`)
+}
+
+async function getSnapshotCities(): Promise<V1CityItem[]> {
+  if (cachedCitiesSnapshot) return cachedCitiesSnapshot
+  try {
+    const data = await fetchSnapshotFile('cities.json')
+    if (Array.isArray(data) && data.length > 0) {
+      cachedCitiesSnapshot = data
+      return data
+    }
+  } catch (err) {
+    console.warn('Failed to load snapshot cities.json:', err)
+  }
+  return [
+    { city: 'mumbai', name: 'Mumbai', lat: 19.121742, lon: 72.862475, incident_count: 191, high_count: 48 },
+    { city: 'pune', name: 'Pune', lat: 18.510793, lon: 73.854980, incident_count: 159, high_count: 29 },
+    { city: 'nagpur', name: 'Nagpur', lat: 21.146703, lon: 79.086895, incident_count: 223, high_count: 40 },
+    { city: 'delhi', name: 'Delhi', lat: 28.609941, lon: 77.221817, incident_count: 180, high_count: 34 },
+    { city: 'bengaluru', name: 'Bengaluru', lat: 12.970724, lon: 77.597094, incident_count: 179, high_count: 37 },
+    { city: 'hyderabad', name: 'Hyderabad', lat: 17.380345, lon: 78.491224, incident_count: 197, high_count: 27 },
+    { city: 'guwahati', name: 'Guwahati', lat: 26.137415, lon: 91.744432, incident_count: 198, high_count: 31 },
+  ]
+}
+
+async function getSnapshotIncidents(): Promise<V1Incident[]> {
+  if (cachedIncidentsSnapshot) return cachedIncidentsSnapshot
+  try {
+    const data = await fetchSnapshotFile('incidents.json')
+    if (Array.isArray(data) && data.length > 0) {
+      cachedIncidentsSnapshot = data
+      return data
+    }
+  } catch (err) {
+    console.warn('Failed to load snapshot incidents.json:', err)
+  }
+  return MOCK_V1_INCIDENTS
+}
+
+async function getSnapshotStats(): Promise<any> {
+  if (cachedStatsSnapshot) return cachedStatsSnapshot
+  try {
+    const data = await fetchSnapshotFile('stats.json')
+    if (data) {
+      cachedStatsSnapshot = data
+      return data
+    }
+  } catch (err) {
+    console.warn('Failed to load snapshot stats.json:', err)
+  }
+  return {
+    total_events: 3218,
+    total_incidents: 1327,
+    by_city: {
+      mumbai: { total_events: 574, incidents: 191, real: 24, synthetic: 550 },
+      pune: { total_events: 390, incidents: 159, real: 16, synthetic: 374 },
+      nagpur: { total_events: 483, incidents: 223, real: 21, synthetic: 462 },
+      delhi: { total_events: 426, incidents: 180, real: 20, synthetic: 406 },
+      bengaluru: { total_events: 438, incidents: 179, real: 22, synthetic: 416 },
+      hyderabad: { total_events: 445, incidents: 197, real: 20, synthetic: 425 },
+      guwahati: { total_events: 462, incidents: 198, real: 21, synthetic: 441 },
+    },
+    real_vs_synthetic: { real: 144, synthetic: 3074 },
+  }
+}
+
+async function getSnapshotEventsGeoJSON(): Promise<any> {
+  if (cachedEventsSnapshot) return cachedEventsSnapshot
+  try {
+    const data = await fetchSnapshotFile('events.json')
+    if (data) {
+      cachedEventsSnapshot = data
+      return data
+    }
+  } catch (err) {
+    console.warn('Failed to load snapshot events.json:', err)
+  }
+  return { type: 'FeatureCollection', features: [] }
+}
+
+export async function fetchV1Cities(): Promise<V1CityItem[]> {
+  if (!isOffline) {
+    try {
+      const res = await fetch(`${API_BASE}/v1/cities`)
+      if (res.ok) return await res.json()
+    } catch (err) {
+      console.warn('Backend unavailable, using snapshot v1 cities:', err)
+    }
+  }
+  return await getSnapshotCities()
 }
 
 export async function fetchV1EventsGeoJSON(params?: { city?: string; from?: string; to?: string }): Promise<any> {
-  try {
-    const q = new URLSearchParams()
-    if (params?.city && params.city !== 'all') q.set('city', params.city)
-    if (params?.from) q.set('from', params.from)
-    if (params?.to) q.set('to', params.to)
-    const url = `${API_BASE}/v1/events/geojson${q.toString() ? `?${q.toString()}` : ''}`
-    const res = await fetch(url)
-    if (!res.ok) throw new Error('Failed to fetch events geojson')
-    return await res.json()
-  } catch (err) {
-    console.warn('Backend unavailable, using fallback geojson:', err)
-    return { type: 'FeatureCollection', features: [] }
+  if (!isOffline) {
+    try {
+      const q = new URLSearchParams()
+      if (params?.city && params.city !== 'all') q.set('city', params.city)
+      if (params?.from) q.set('from', params.from)
+      if (params?.to) q.set('to', params.to)
+      const url = `${API_BASE}/v1/events/geojson${q.toString() ? `?${q.toString()}` : ''}`
+      const res = await fetch(url)
+      if (res.ok) return await res.json()
+    } catch (err) {
+      console.warn('Backend unavailable, using snapshot geojson:', err)
+    }
   }
+  const geojson = await getSnapshotEventsGeoJSON()
+  if (params?.city && params.city !== 'all') {
+    const cNorm = params.city.toLowerCase()
+    return {
+      ...geojson,
+      features: (geojson.features || []).filter((f: any) =>
+        (f.properties?.city || '').toLowerCase() === cNorm
+      ),
+    }
+  }
+  return geojson
 }
 
 export async function fetchV1Stats(): Promise<any> {
-  try {
-    const res = await fetch(`${API_BASE}/v1/stats`)
-    if (!res.ok) throw new Error('Failed to fetch v1 stats')
-    return await res.json()
-  } catch (err) {
-    console.warn('Backend unavailable, using fallback v1 stats:', err)
-    return {
-      total_events: 3218,
-      total_incidents: 1327,
-      by_city: {
-        mumbai: { total_events: 574, incidents: 191, real: 24, synthetic: 550 },
-        pune: { total_events: 390, incidents: 159, real: 16, synthetic: 374 },
-        nagpur: { total_events: 483, incidents: 223, real: 21, synthetic: 462 },
-        delhi: { total_events: 426, incidents: 180, real: 20, synthetic: 406 },
-        bengaluru: { total_events: 438, incidents: 179, real: 22, synthetic: 416 },
-        hyderabad: { total_events: 445, incidents: 197, real: 20, synthetic: 425 },
-        guwahati: { total_events: 462, incidents: 198, real: 21, synthetic: 441 },
-      },
-      real_vs_synthetic: { real: 144, synthetic: 3074 },
+  if (!isOffline) {
+    try {
+      const res = await fetch(`${API_BASE}/v1/stats`)
+      if (res.ok) return await res.json()
+    } catch (err) {
+      console.warn('Backend unavailable, using snapshot v1 stats:', err)
     }
   }
+  return await getSnapshotStats()
 }
 
 export async function fetchV1Incidents(city?: string, severity?: string): Promise<V1Incident[]> {
-  try {
-    const params = new URLSearchParams()
-    if (city) params.set('city', city)
-    if (severity) params.set('severity', severity)
-    const url = `${API_BASE}/v1/incidents${params.toString() ? `?${params.toString()}` : ''}`
-    const res = await fetch(url)
-    if (!res.ok) throw new Error('Failed to fetch v1 incidents')
-    return await res.json()
-  } catch (err) {
-    console.warn('Backend unavailable, using fallback v1 incidents:', err)
-    let filtered = [...MOCK_V1_INCIDENTS]
-    if (city) {
-      filtered = filtered.filter(i => (i.city || '').toLowerCase().includes(city.toLowerCase()))
+  if (!isOffline) {
+    try {
+      const params = new URLSearchParams()
+      if (city && city !== 'all') params.set('city', city)
+      if (severity && severity !== 'all') params.set('severity', severity)
+      const url = `${API_BASE}/v1/incidents${params.toString() ? `?${params.toString()}` : ''}`
+      const res = await fetch(url)
+      if (res.ok) return await res.json()
+    } catch (err) {
+      console.warn('Backend unavailable, using snapshot v1 incidents:', err)
     }
-    if (severity) {
-      filtered = filtered.filter(i => i.severity_level.toLowerCase() === severity.toLowerCase())
-    }
-    return filtered
   }
+  const allIncidents = await getSnapshotIncidents()
+  let filtered = allIncidents
+  if (city && city !== 'all') {
+    const cNorm = city.toLowerCase()
+    filtered = filtered.filter(i => (i.city || '').toLowerCase() === cNorm)
+  }
+  if (severity && severity !== 'all') {
+    const sNorm = severity.toLowerCase()
+    filtered = filtered.filter(i => (i.severity_level || '').toLowerCase() === sNorm)
+  }
+  return filtered
 }
 
 export async function fetchV1Incident(id: string): Promise<V1Incident> {
-  try {
-    const res = await fetch(`${API_BASE}/v1/incidents/${id}`)
-    if (!res.ok) throw new Error(`Failed to fetch incident ${id}`)
-    return await res.json()
-  } catch (err) {
-    console.warn(`Backend unavailable, using fallback incident for ${id}:`, err)
-    const match = MOCK_V1_INCIDENTS.find(i => i.incident_id === id) || MOCK_V1_INCIDENTS[0]
-    return match
+  if (!isOffline) {
+    try {
+      const res = await fetch(`${API_BASE}/v1/incidents/${id}`)
+      if (res.ok) return await res.json()
+    } catch (err) {
+      console.warn(`Backend unavailable, using snapshot incident for ${id}:`, err)
+    }
   }
+  const allIncidents = await getSnapshotIncidents()
+  const match = allIncidents.find(i => i.incident_id === id) || allIncidents[0] || MOCK_V1_INCIDENTS[0]
+  return match
 }
 
 export async function fetchV1Replay(id: string): Promise<any> {
@@ -1010,6 +1109,9 @@ export async function sendIncidentAlert(
   incidentId: string,
   recipients?: string[]
 ): Promise<{ status: string; sent: boolean; alert_sent_at?: string }> {
+  if (isOffline) {
+    return { status: 'offline', sent: false }
+  }
   try {
     const res = await fetch(`${API_BASE}/v1/incidents/${incidentId}/alert`, {
       method: 'POST',

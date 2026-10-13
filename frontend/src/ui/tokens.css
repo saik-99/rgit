@@ -18,6 +18,40 @@ body, button, input, select, textarea {
   color: var(--text);
 }
 
+h1, h2, h3, h4, h5, h6, .font-display {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.section-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.btn-primary {
+  height: 2.75rem;
+  border-radius: 0.75rem;
+  background-color: rgba(2, 6, 23, 0.9);
+  border: 1px solid rgba(34, 211, 238, 0.6);
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.875rem;
+  box-shadow: 0 0 24px rgba(34, 211, 238, 0.25);
+  transition: all 0.2s ease;
+}
+.btn-primary:hover {
+  border-color: rgba(34, 211, 238, 0.9);
+  box-shadow: 0 0 32px rgba(34, 211, 238, 0.4);
+}
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
 @keyframes pinDropBounce {
   0% {
     transform: translateY(-70px) scale(0.2);
